@@ -194,14 +194,14 @@ void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZI> &laser
 
       // _laserCloudScans[scanID].push_back(point);
    }
-   cout << "ca = " << ca << endl;
-   cout << "cb = " << cb << endl;
-   cout << "cc = " << cc << endl;
-   for (int i = 0; i < 64; i++)
-   {
-      if (scanid[i] > 0)
-         cout << i-10 << " = "<< scanid[i] << endl;
-   }
+   // cout << "ca = " << ca << endl;
+   // cout << "cb = " << cb << endl;
+   // cout << "cc = " << cc << endl;
+   // for (int i = 0; i < 64; i++)
+   // {
+      // if (scanid[i] > 0)
+         // cout << i-10 << " = "<< scanid[i] << endl;
+   // }
    
    // ShowCloud(laserCloudOut);
    // processScanlines(scanTime, _laserCloudScans); //提取特征
