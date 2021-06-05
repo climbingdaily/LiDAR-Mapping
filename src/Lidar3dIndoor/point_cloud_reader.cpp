@@ -214,15 +214,15 @@ int PointCloudReader::readPointCloud(PointCloud::Ptr frame_point_cloud, bool rec
       {
          // std::cout << "filesize " << files.size() << std::endl;
          // std::cout << timeStamps[frameNumber]  << std::endl;
-         getCloudFromPcd(cloud, filePath + '/' + files[frameNumber]);
-         // getCloudFromeXYZ(cloud, filePath + '/' + files[frameNumber]);
+         // getCloudFromPcd(cloud, filePath + '/' + files[frameNumber]);
+         getCloudFromeXYZ(cloud, filePath + '/' + files[frameNumber]);
       }
       else
       {
          return -1;
       }
-      cloudFromeScan.process(*cloud, frame_point_cloud, timeStamps[frameNumber]); //处理pcd
-      // cloudFromeScan.process(*cloud, frame_point_cloud, (frameNumber + 10) * 0.05); //XYZ
+      // cloudFromeScan.process(*cloud, frame_point_cloud, timeStamps[frameNumber]); //处理pcd
+      cloudFromeScan.process(*cloud, frame_point_cloud, (frameNumber + 10) * 0.05); //XYZ
    }
    
    frame_point_cloud->height = 1;

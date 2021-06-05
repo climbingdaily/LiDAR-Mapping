@@ -360,8 +360,11 @@ inline void getCloudFromPcd(pcl::PointCloud<pcl::PointXYZI>::Ptr pcdcloud, std::
    return ;
 }
 
+#include <map>
 inline void getCloudFromeXYZ(pcl::PointCloud<pcl::PointXYZI>::Ptr xyzcloud, std::string xyzfile)
 {
+   std::map<int, int> angle_count;
+   std::map<int, int>::iterator iter;
    xyzcloud->clear();
    ifstream cloudfile(xyzfile);
    double t;
@@ -375,7 +378,21 @@ inline void getCloudFromeXYZ(pcl::PointCloud<pcl::PointXYZI>::Ptr xyzcloud, std:
       pcl::PointXYZI pt;
       cloudfile >> pt.x >> pt.y >> pt.z >> pt.intensity >> t;
       xyzcloud->push_back(pt);
+
+      //统计角度信息
+      float angle = std::atan(pt.z / std::sqrt(pt.x * pt.x + pt.y * pt.y));
+      int degree = int(angle * 180 / M_PI);
+      if (angle_count.find(degree) == angle_count.end())
+      {
+         angle_count[degree] = 0;
+      }
+      else
+      {
+         angle_count[degree] += 1;
+      }
    }
+   for (iter = angle_count.begin(); iter!= angle_count.end(); ++iter)
+      cout << iter->first << "=>" << iter->second << endl;
    cloudfile.close();
 }
 

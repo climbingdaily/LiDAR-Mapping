@@ -582,10 +582,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
       }
       // double sumTraj = initTraj[frameID][0] + initTraj[frameID][1] + initTraj[frameID][2] + initTraj[frameID][3] + initTraj[frameID][4] +initTraj[frameID][5];
       if(isInitTraj[frameID])
-      {
          iniTransformVector = initTraj[frameID];
-
-      }
       else
          iniTransformVector = 2 * transformTobeMapped - preTransformVector; //简单拟合的一个初始变换向量
       // if(isInitTraj[frameID])
@@ -634,8 +631,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             laserCloudSurfStack2->push_back(pointSel);
          }
       }
-
-
 
       if (frameCount >= stackFrameNum)
       {
@@ -974,6 +969,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             size_t maxIterations = 20;
             for (int iterCount = 0; iterCount < maxIterations; iterCount++)
             {
+               // if (frameID < 350)
+               //    continue;
                laserCloudOri->clear(); //迭代中的中间变量
                coeffSel->clear();
 
@@ -1285,6 +1282,11 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                }
 
             }
+            
+            // if (frameID < 350)
+            // //前期静止不动到帧数
+            //    for (int i = 0; i < 6; i++)
+            //       transformTobeMapped[i] = 0;
             transformUpdate();
          }
 
@@ -1385,6 +1387,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             //  }*/
             // ShowCloud(laserCloudSurround, viewer);
          }
+
 
          Eigen::Matrix3d Rx = Eigen::AngleAxisd(transformTobeMapped[0], Eigen::Vector3d(1, 0, 0)).toRotationMatrix();
          Eigen::Matrix3d Ry = Eigen::AngleAxisd(transformTobeMapped[1], Eigen::Vector3d(0, 1, 0)).toRotationMatrix();
