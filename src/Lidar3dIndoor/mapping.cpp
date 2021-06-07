@@ -974,6 +974,15 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             size_t maxIterations = 20;
             for (int iterCount = 0; iterCount < maxIterations; iterCount++)
             {
+
+               //前期静止不动到帧数
+               if (frameID < 350)
+               {
+                  for (int i = 0; i < 6; i++)
+                     transformTobeMapped[i] = 0;
+                  continue;
+               }
+
                laserCloudOri->clear(); //迭代中的中间变量
                coeffSel->clear();
 
