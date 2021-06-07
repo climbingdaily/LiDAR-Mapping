@@ -379,4 +379,41 @@ inline void getCloudFromeXYZ(pcl::PointCloud<pcl::PointXYZI>::Ptr xyzcloud, std:
    cloudfile.close();
 }
 
+
+inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile)
+{
+   xyzcloud->clear();
+   ifstream cloudfile(xyzfile);
+   double timestamp;
+   int ring;
+   if(!cloudfile)
+   {
+      cout << "读取XYZ文件错误：" << xyzfile << endl;
+      exit(-1);
+   }
+   while(cloudfile)
+   {
+      PointType pt;
+      cloudfile >> pt.x >> pt.y >> pt.z >> pt.intensity >> timestamp >> ring;
+
+      // skip NaN and INF valued points
+      if (!pcl_isfinite(pt.x) ||
+          !pcl_isfinite(pt.y) ||
+          !pcl_isfinite(pt.z))
+         continue;
+
+      // skip zero valued points
+      float distance = pt.x * pt.x + pt.y * pt.y + pt.z * pt.z; 
+      if (distance < 0.0001)
+         continue;
+
+      pt.data_n[0] = int(timestamp);           //秒
+      pt.data_n[1] = timestamp - pt.data_n[0]; //微秒
+      pt.data_n[2] = ring;
+      pt.data_n[3] = sqrt(distance);
+      xyzcloud->push_back(pt);
+   }
+   cloudfile.close();
+}
+
 #endif
