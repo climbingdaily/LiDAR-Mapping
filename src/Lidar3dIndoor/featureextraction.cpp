@@ -56,7 +56,6 @@ void FeatureExtraction::setInputCloud(pcl::PointCloud<PointType> &laserCloudIn)
    for (int i = 5; i < cloudSize - 5; i++)
    {
       //后5+前5-10*当前坐标,相当于求10个向量的差值
-
       float dis, diffX, diffY, diffZ;
       if (curvThredhold > 0.2)
       {
@@ -198,7 +197,13 @@ void FeatureExtraction::setInputCloud(pcl::PointCloud<PointType> &laserCloudIn)
                continue;
             //相邻点未被选取，且曲率大于一个阈值
             if (cloudNeighborPicked[ind] == 0 &&
-                cloudCurvature[ind] > curvThredhold)
+                cloudCurvature[ind] > curvThredhold &&
+                (fabs(laserCloud->points[ind].x) > 0.3 ||
+                 fabs(laserCloud->points[ind].y) > 0.3 ||
+                 fabs(laserCloud->points[ind].z) > 0.3) &&
+                fabs(laserCloud->points[ind].x) < 30 &&
+                fabs(laserCloud->points[ind].y) < 30 &&
+                fabs(laserCloud->points[ind].z) < 30)
             {
 
                largestPickedNum++;
@@ -251,7 +256,13 @@ void FeatureExtraction::setInputCloud(pcl::PointCloud<PointType> &laserCloudIn)
          {
             int ind = cloudSortInd[k];
             if (cloudNeighborPicked[ind] == 0 &&
-                cloudCurvature[ind] < curvThredhold)
+                cloudCurvature[ind] < curvThredhold &&
+                (fabs(laserCloud->points[ind].x) > 0.3 ||
+                 fabs(laserCloud->points[ind].y) > 0.3 ||
+                 fabs(laserCloud->points[ind].z) > 0.3) &&
+                fabs(laserCloud->points[ind].x) < 30 &&
+                fabs(laserCloud->points[ind].y) < 30 &&
+                fabs(laserCloud->points[ind].z) < 30)
             {
 
                cloudLabel[ind] = -1;
@@ -303,7 +314,7 @@ void FeatureExtraction::setInputCloud(pcl::PointCloud<PointType> &laserCloudIn)
       pcl::PointCloud<PointType> surfPointsLessFlatScanDS;
       pcl::VoxelGrid<PointType> downSizeFilter;
       downSizeFilter.setInputCloud(surfPointsLessFlatScan);
-      downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
+      downSizeFilter.setLeafSize(0.05, 0.05, 0.05);
       downSizeFilter.filter(surfPointsLessFlatScanDS);
 
       surfPointsLessFlat += surfPointsLessFlatScanDS;
