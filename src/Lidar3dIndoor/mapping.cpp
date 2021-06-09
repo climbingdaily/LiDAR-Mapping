@@ -52,6 +52,7 @@ Vector6d transform;
 Vector6d transformSum;
 Vector6d transformIncre;
 Vector6d transformTobeMapped;
+Vector6d transformLast20[20];
 Vector6d transformBefMapped; //就是odometry传来的transformsum
 Vector6d transformAftMapped;
 Vector6d preTransformVector; //上一帧的变换向量
@@ -435,6 +436,9 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    int frameOffset = 0;
    float preStartTime, curStartTime, frameTime;
    double frame_startTime = 0;
+   int fitCount = 0;
+   bool skipCurFrame = false;
+   float distLast20[20] = {0};
    int preID[2] =  {-1};
    PointType linestart, lineend;
    linestart.x = 0;
@@ -584,10 +588,13 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
       if(isInitTraj[frameID])
       {
          iniTransformVector = initTraj[frameID];
-
       }
       else
-         iniTransformVector = 2 * transformTobeMapped - preTransformVector; //简单拟合的一个初始变换向量
+         iniTransformVector = 2 * transformTobeMapped - preTransformVector; //一阶: 简单拟合的一个初始变换向量 
+         //二阶: t_i = t_{i-1} + (t_{i-1} - t_i{-2}) + 0.5 * (t_{i-2} - t_{i-3}) 
+         // iniTransformVector = 2 * transformLast20[(frameID - 351) % 20] -
+         //                      0.5 * transformLast20[(frameID - 352) % 20] -
+         //                      0.5 * transformLast20[(frameID - 353) % 20]; 
       // if(isInitTraj[frameID])
       // {
       //    iniTransformVector[3] = initTraj[frameID][3]; 
@@ -975,7 +982,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             for (int iterCount = 0; iterCount < maxIterations; iterCount++)
             {
 
-               //前期静止不动到帧数
+               //前期静止不动的帧数
                if (frameID < 350)
                {
                   for (int i = 0; i < 6; i++)
@@ -1268,6 +1275,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                    pow((transformTobeMapped[3] - iniTransformVector[3])* 100, 2) +
                    pow((transformTobeMapped[4] - iniTransformVector[4])* 100, 2) +
                    pow((transformTobeMapped[5] - iniTransformVector[5])* 100, 2)) / 100;
+
+
                if (deltaR < 0.05 && deltaT < 0.01 || iterCount >= maxIterations - 1)
                {
                   if (isShowCloud && TEST)
@@ -1290,11 +1299,48 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
                   }
                   errorWrite <<  frameID << ' ' << iterCount << ' ' << sumDeltaR << ' ' << sumDeltaT << endl;
+                  int lastCount = 10;
+                  if (frameID > 370)
+                  {
+                     float meanDist = 0;
+                     float sigmaDist = 0;
+                     for (size_t i = 0; i < lastCount; i++)
+                        meanDist += distLast20[i];
+                     meanDist /= lastCount; //平均帧间距离
+
+                     for (size_t i = 0; i < lastCount; i++)
+                        sigmaDist += pow(distLast20[i] - meanDist, 2);
+                     sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
+
+                     float fitDist = 1.5 * distLast20[(frameID - 351) % 20] - 0.5 * distLast20[(frameID - 352) % 20]; // vt + at/2
+                     cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << "\tfitDist = " << fitDist << endl;
+                     if (fabs(deltaT - meanDist) > 3 * sigmaDist || deltaT > 0.1)
+                     {
+                        cout << "---------------------------------------------------\n";
+                        fitCount ++;
+                        transformTobeMapped = iniTransformVector;
+                     }
+                  }
+
+                  // 循环保存前20个帧间距离
+                  transformLast20[(frameID - 350) % 20] = transformTobeMapped;
+                  distLast20[(frameID - 350) % 20] = sumDeltaT;
+
                   break;
                }
-
             }
-            transformUpdate();
+            if (fitCount > 3)
+            {
+               skipCurFrame = true;
+               fitCount = 0;
+            }
+            else
+               transformUpdate();
+         }
+         if (skipCurFrame)
+         {
+            continue;
+            skipCurFrame = false;
          }
 
          for (int i = 0; i < laserCloudCornerStackNum; i++)

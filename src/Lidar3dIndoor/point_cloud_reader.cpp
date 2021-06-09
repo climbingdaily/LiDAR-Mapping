@@ -216,7 +216,7 @@ int PointCloudReader::readPointCloud(PointCloud::Ptr frame_point_cloud, bool rec
          // std::cout << timeStamps[frameNumber]  << std::endl;
          // getCloudFromPcd(cloud, filePath + '/' + files[frameNumber]);
          // getCloudFromeXYZ(cloud, filePath + '/' + files[frameNumber]);
-         getCloudFromeSpinXYZ(frame_point_cloud, filePath + '/' + files[frameNumber]);
+         getCloudFromeSpinXYZ(frame_point_cloud, filePath + '/' + files[frameNumber], timeStamps[frameNumber]);
       }
       else
       {

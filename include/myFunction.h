@@ -380,12 +380,14 @@ inline void getCloudFromeXYZ(pcl::PointCloud<pcl::PointXYZI>::Ptr xyzcloud, std:
 }
 
 
-inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile)
+inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile, double &frametime)
 {
    xyzcloud->clear();
    ifstream cloudfile(xyzfile);
    double timestamp;
    int ring;
+   bool firstpoint = true;
+
    if(!cloudfile)
    {
       cout << "读取XYZ文件错误：" << xyzfile << endl;
@@ -406,7 +408,11 @@ inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile)
       float distance = pt.x * pt.x + pt.y * pt.y + pt.z * pt.z; 
       if (distance < 0.0001)
          continue;
-
+      
+      if (firstpoint){
+         frametime = timestamp;
+         firstpoint = false;
+      }
       pt.data_n[0] = int(timestamp);           //秒
       pt.data_n[1] = timestamp - pt.data_n[0]; //微秒
       pt.data_n[2] = ring;
