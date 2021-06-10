@@ -977,53 +977,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
          laserCloudCornerStack2->clear();
          laserCloudSurfStack2->clear();
 
-         if (isShowCloud)
-         {
-            // for (int i = 0; i < laserCloudValidNum; i++)
-            // {
-            //    //安装分块来显示点云 
-            //    viewer->removePointCloud(std::to_string(laserCloudValidInd[i]).c_str());
-            //    addCloud(laserCloudSurfArray[laserCloudValidInd[i]], laserCloudValidInd[i], viewer);
-            // }
-            lineend.x = transformTobeMapped[3];
-            lineend.y = transformTobeMapped[4];
-            lineend.z = transformTobeMapped[5];
-            std::string id;
-            id = "__line" + std::to_string(frameID);
-            // viewerCorner->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
-            // viewerSurf->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
-            viewer->addLine(linestart, lineend, 0, 255, 255, id); 
-            
-            if (!skipCurFrame)
-            {
-               pcl::PointCloud<PointType>::Ptr locationPoints(new pcl::PointCloud<PointType>());
-               locationPoints->points.push_back(linestart);
-               pcl::visualization::PointCloudColorHandlerCustom<PointType> blue(locationPoints, 0, 255, 255);
-               id = "__location" + std::to_string(frameID);
-               viewer->addPointCloud(locationPoints, blue, id);
-               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, id);
-            }
-            else
-            {
-               id = "__skipframe" + std::to_string(frameID);
-               PointType b3 = __framePointPOs;
-               b3.x -= 0.1;
-               b3.y -= 0.1;
-               b3.z -= 0.1;
-
-               viewer->addText3D(std::to_string(__frameId), b3, 0.2, 1.0, 1.0, 1.0, id);
-               skipCurFrame = false;
-            }
-            
-            viewer->updateText( "Current frame: " + std::to_string(frameID), 10, 80, 25,1.0,1.0,1.0,"frameID");
-            __frameId = frameID;
-            __framePointPOs = linestart;
-            linestart = lineend;
-            // ShowCloud(laserCloudCornerFromMap, viewerCorner);
-            // ShowCloud(laserCloudSurfFromMap, viewerSurf);
-            ShowCloud(laserCloudCornerFromMap, viewer, "corner");
-            ShowCloud(laserCloudSurfFromMap, viewer, "surf");
-         }
          //全部特征点云
          if (laserCloudCornerFromMapNum > 10 && laserCloudSurfFromMapNum > 100)
          {
@@ -1393,7 +1346,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
                         float fitDist = 1.5 * distLast20[(frameID - 351) % 20] - 0.5 * distLast20[(frameID - 352) % 20]; // vt + at/2
                         cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << "\tfitDist = " << fitDist << endl;
-                        if (fabs(sumDeltaT - meanDist) > 3 * sigmaDist || sumDeltaT > 0.05)
+                        if (fabs(sumDeltaT - meanDist) > 2 * sigmaDist || sumDeltaT > 0.05)
                         {
                            cout << "----------------------skip--------------------------\n";
                            skipCurFrame = true;
@@ -1418,7 +1371,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
                      // 循环保存前20个帧间距离
                      transformLast20[(frameID) % 20] = transformTobeMapped;
-                     distLast20[(frameID) % 20] = sumDeltaT;
+                     if(!skipCurFrame)
+                        distLast20[(frameID) % 20] = sumDeltaT;
 
                      break;
                   }
@@ -1426,15 +1380,64 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             }
             transformUpdate();
          }
-
          *framePre = *frame1;
 
-         // 在全局地图中加入当前帧的特征
+         if (isShowCloud)
+         {
+            // for (int i = 0; i < laserCloudValidNum; i++)
+            // {
+            //    //按照分块来显示点云 
+            //    viewer->removePointCloud(std::to_string(laserCloudValidInd[i]).c_str());
+            //    addCloud(laserCloudSurfArray[laserCloudValidInd[i]], laserCloudValidInd[i], viewer);
+            // }
+            lineend.x = transformTobeMapped[3];
+            lineend.y = transformTobeMapped[4];
+            lineend.z = transformTobeMapped[5];
+            std::string id;
+            id = "__line" + std::to_string(frameID);
+            // viewerCorner->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
+            // viewerSurf->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
+            viewer->addLine(linestart, lineend, 0, 255, 255, id);
+
+            pcl::PointCloud<PointType>::Ptr locationPoints(new pcl::PointCloud<PointType>());
+            locationPoints->points.push_back(lineend);
+            pcl::visualization::PointCloudColorHandlerCustom<PointType> blue(locationPoints, 0, 255, 255);
+            id = "__location" + std::to_string(frameID);
+            viewer->addPointCloud(locationPoints, blue, id);
+
+            if (!skipCurFrame)
+            {
+               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, id);
+            }
+            else
+            {
+               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 20, id);
+               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, id);
+               // id = "__skipframe" + std::to_string(frameID);
+               // PointType b3 = __framePointPOs;
+               // b3.x -= 0.1;
+               // b3.y -= 0.1;
+               // b3.z -= 0.1;
+               // viewer->addText3D(std::to_string(__frameId), b3, 0.2, 1.0, 1.0, 1.0, id);
+            }
+            
+            viewer->updateText( "Current frame: " + std::to_string(frameID), 10, 80, 25,1.0,1.0,1.0,"frameID");
+            __frameId = frameID;
+            __framePointPOs = linestart;
+            linestart = lineend;
+            // ShowCloud(laserCloudCornerFromMap, viewerCorner);
+            // ShowCloud(laserCloudSurfFromMap, viewerSurf);
+            ShowCloud(laserCloudCornerFromMap, viewer, "corner");
+            ShowCloud(laserCloudSurfFromMap, viewer, "surf");
+         }
+
          if (skipCurFrame)
          {
+            skipCurFrame = false;
             continue;
          }
 
+         // 在全局地图中加入当前帧的特征
          for (int i = 0; i < laserCloudCornerStackNum; i++)
          {
             pointAssociateToMap(&laserCloudCornerStack->points[i], &pointSel);
