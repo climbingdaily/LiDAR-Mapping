@@ -1010,22 +1010,24 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             kdtreeSurfFromMap->setInputCloud(laserCloudSurfFromMap);
 
             size_t maxIterations = 20;
-            if (frameID % 4 == 0)
+            if (frameID % 4 == 0 && frameID > 350)
             {
                Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+               PointCloud::Ptr referrence(new PointCloud);
+               PointCloud::Ptr align(new PointCloud);
 
-               // 两帧乘上transformTobeMapped；
-               transformMatrix = Vector6dToRotate(transformTobeMapped);
-               pcl::transformPointCloud(*frame1, *frame1, transformMatrix);
-               pcl::transformPointCloud(*framePre, *framePre, transformMatrix);
+               // 两帧乘上iniTransformVector
+               transformMatrix = Vector6dToRotate(iniTransformVector);
+               pcl::transformPointCloud(*frame1, *align, transformMatrix);
+               pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
 
-               GICP.setInputTarget(frame1);
-               GICP.setInputSource(framePre);
+               GICP.setInputTarget(referrence);
+               GICP.setInputSource(align);
                GICP.align(*alignedframe);
                ICPMatrix = GICP.getFinalTransformation();
 
-               transformTobeMapped = RotateToVector6d(transformMatrix * ICPMatrix); // matrix * T
+               transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
             }
             else
             {
