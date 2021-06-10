@@ -187,7 +187,7 @@ void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZI> &laser
       point.data_n[0] = int(relTime);           //秒
       point.data_n[1] = relTime - point.data_n[0]; //微秒
       point.data_n[2] = scanID;
-      point.data_n[3] = sqrt(point.x * point.x + point.y * point.y + point.y * point.y);
+      point.data_n[3] = sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
       laserCloudOut->points.push_back(point);
 
       //projectPointToStartOfSweep(point, relTime);
