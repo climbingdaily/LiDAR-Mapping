@@ -30,7 +30,7 @@ pcl::PointCloud<PointType>::Ptr laserCloudCornerLast(new pcl::PointCloud<PointTy
 pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudCornerStack(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudSurfStack(new pcl::PointCloud<PointType>());
-pcl::PointCloud<PointType>::Ptr laserCloudCornerStack2(new pcl::PointCloud<PointType>());
+pcl::PointCloud<PointType>::Ptr laserCloudCornerStack2(new pcl::PointCloud<PointType>()); //单帧corner点
 pcl::PointCloud<PointType>::Ptr laserCloudSurfStack2(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudOri(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr coeffSel(new pcl::PointCloud<PointType>());
@@ -292,12 +292,15 @@ void Mapping::pointAssociateToMap(PointType const *const pi, PointType *const po
    float y2 = cos(rx) * y1 - sin(rx) * z1;
    float z2 = sin(rx) * y1 + cos(rx) * z1;
 
-   po->x = cos(ry) * x2 + sin(ry) * z2 + transformTobeMapped[3];
+   po->x = cos(ry) * x2 + sin(ry) * z2 + tx;
    po->y = y2 + ty;
    po->z = -sin(ry) * x2 + cos(ry) * z2 + tz;
    po->intensity = pi->intensity;
 }
 
+/**
+ * 逆操作 
+ */
 void Mapping::pointAssociateTobeMapped(PointType const *const pi, PointType *const po)
 {
    double rx, ry, rz, tx, ty, tz;
@@ -650,27 +653,23 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
       preTransformVector = transformTobeMapped;
       transformTobeMapped = iniTransformVector;
-
       frameCount++;
-
-      laserCloudCornerLast = cornerPointsLessSharp;
-      laserCloudSurfLast = surfPointsLessFlat;
 
       if (frameCount >= stackFrameNum)
       {
          //将特征点放到上一帧附近
          //transformAssociateToMap();
-         int laserCloudCornerLastNum = laserCloudCornerLast->points.size();
+         int laserCloudCornerLastNum = cornerPointsLessSharp->points.size();
          for (int i = 0; i < laserCloudCornerLastNum; i++)
          {
-            pointAssociateToMap(&laserCloudCornerLast->points[i], &pointSel);
+            pointAssociateToMap(&cornerPointsLessSharp->points[i], &pointSel);
             laserCloudCornerStack2->push_back(pointSel);
          }
 
-         int laserCloudSurfLastNum = laserCloudSurfLast->points.size();
+         int laserCloudSurfLastNum = surfPointsLessFlat->points.size();
          for (int i = 0; i < laserCloudSurfLastNum; i++)
          {
-            pointAssociateToMap(&laserCloudSurfLast->points[i], &pointSel);
+            pointAssociateToMap(&surfPointsLessFlat->points[i], &pointSel);
             laserCloudSurfStack2->push_back(pointSel);
          }
       }
@@ -1354,7 +1353,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                      if (fabs(deltaT - meanDist) > 4 * sigmaDist || deltaT > 0.1)
                      {
                         cout << "---------------------------------------------------\n";
-
+                        skipCurFrame = true;
                         Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                         Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
                         PointCloud::Ptr referrence(new PointCloud);
@@ -1386,6 +1385,13 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
          *framePre = *frame1;
 
+         // 在全局地图中加入当前帧的特征
+         if (skipCurFrame)
+         {
+            skipCurFrame = false;
+            continue;
+         }
+
          for (int i = 0; i < laserCloudCornerStackNum; i++)
          {
             pointAssociateToMap(&laserCloudCornerStack->points[i], &pointSel);
@@ -1408,7 +1414,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
                laserCloudCornerArray[cubeInd]->push_back(pointSel);
             }
-         }
+            }
 
          for (int i = 0; i < laserCloudSurfStackNum; i++)
          {
@@ -1490,21 +1496,10 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
          Eigen::Matrix3d rot = Ry * Rx * Rz;
          Eigen::Quaterniond q(rot);
 
-         // Eigen::Vector3d euler = rot.eulerAngles(1,0,2);
-         // Eigen::Matrix3d rot2 = q.normalized().toRotationMatrix();
-         // cout << endl << rot << endl;
-         // cout << rot2 << endl << endl;
-         // cout << euler[1] << " " << euler[0] << " " << euler[2] << endl;
-         // cout << transformTobeMapped[0] << " " << transformTobeMapped[1] << " " << transformTobeMapped[2] << endl;
-
          fileWrite << "VERTEX_SE3:QUAT " << frameID << ' '
                    << transformTobeMapped[3] << ' ' << transformTobeMapped[4] << ' ' << transformTobeMapped[5] << ' '
                    << q.x() << ' ' << q.y() << ' ' << q.z() << ' ' << q.w()
                    << endl;
-         // cout << "VERTEX_SE3:QUAT " << frameID << ' '
-         // 		  << transformTobeMapped[3] << ' ' << transformTobeMapped[4] << ' ' << transformTobeMapped[5] << ' '
-         // 		  << q.x() << ' ' << q.y() << ' ' << q.z() << ' ' << q.w()
-         // 		  << endl;
 
          consoleProgress(int(1.0 * (frameID - startFrameNumber) / (endFrameNumber - startFrameNumber) * 76));
       }
