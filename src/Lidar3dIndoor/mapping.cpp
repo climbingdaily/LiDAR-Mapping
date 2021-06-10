@@ -1302,8 +1302,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                   float sumDeltaT = sqrt(
                                         pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
                                         pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
-                                        pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) /
-                                    100;
+                                        pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
 
                   if (deltaR < 0.05 && deltaT < 0.01 || iterCount >= maxIterations - 1)
                   {
@@ -1344,12 +1343,9 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                            sigmaDist += pow(distLast20[i] - meanDist, 2);
                         sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
 
-                        float fitDist = 1.5 * distLast20[(frameID - 351) % 20] - 0.5 * distLast20[(frameID - 352) % 20]; // vt + at/2
-                        cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << "\tfitDist = " << fitDist << endl;
-                        if (fabs(sumDeltaT - meanDist) > 2 * sigmaDist || sumDeltaT > 0.05)
+                        cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << endl;
+                        if (sumDeltaT > 0.06) // 
                         {
-                           cout << "----------------------skip--------------------------\n";
-                           skipCurFrame = true;
                            Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                            Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
                            PointCloud::Ptr referrence(new PointCloud);
@@ -1366,13 +1362,21 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                            ICPMatrix = GICP.getFinalTransformation();
 
                            transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+                           sumDeltaT = sqrt(
+                                           pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
+                                           pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
+                                           pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
                         }
+                     }
+                     if (sumDeltaT > 0.06)
+                     {
+                           cout << "----------------------skip--------------------------\n";
+                           skipCurFrame = true;
                      }
 
                      // 循环保存前20个帧间距离
                      transformLast20[(frameID) % 20] = transformTobeMapped;
-                     if(!skipCurFrame)
-                        distLast20[(frameID) % 20] = sumDeltaT;
+                     distLast20[(frameID) % 20] = sumDeltaT;
 
                      break;
                   }
