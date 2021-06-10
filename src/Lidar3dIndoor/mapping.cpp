@@ -997,7 +997,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             if (!skipCurFrame)
             {
                pcl::PointCloud<PointType>::Ptr locationPoints(new pcl::PointCloud<PointType>());
-               locationPoints->points.push_back(__framePointPOs);
+               locationPoints->points.push_back(linestart);
                pcl::visualization::PointCloudColorHandlerCustom<PointType> blue(locationPoints, 0, 255, 255);
                id = "__location" + std::to_string(frameID);
                viewer->addPointCloud(locationPoints, blue, id);
@@ -1005,6 +1005,13 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             }
             else
             {
+               id = "__skipframe" + std::to_string(frameID);
+               PointType b3 = __framePointPOs;
+               b3.x -= 0.1;
+               b3.y -= 0.1;
+               b3.z -= 0.1;
+
+               viewer->addText3D(std::to_string(__frameId), b3, 0.2, 1.0, 1.0, 1.0, id);
                skipCurFrame = false;
             }
             
@@ -1372,7 +1379,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                      int lastCount = 10;
 
                      // 比较预测值和计算值之间的差别
-                     /*
                      if (frameID > 370)
                      {
                         float meanDist = 0;
@@ -1409,7 +1415,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                            // transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
                         }
                      }
-                     */
 
                      // 循环保存前20个帧间距离
                      transformLast20[(frameID) % 20] = transformTobeMapped;
