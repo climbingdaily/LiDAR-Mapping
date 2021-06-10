@@ -8,6 +8,7 @@
 #include <time.h>
 // #include <boost/graph/graph_concepts.hpp>
 #include <opencv/cv.h>
+#include <pcl/registration/gicp.h>
 #include "pcapFileReader.h"
 #include "common.h"
 #include "myFunction.h"
@@ -55,6 +56,7 @@ class Mapping
     Vector6d initTraj[10000];
 
     Eigen::Matrix4f transformation;
+    pcl::GeneralizedIterativeClosestPoint<PointType, PointType> GICP;
     float isOutdoor(PointCloudReader &reader, int minFlamePointSize);
 };
 #endif
