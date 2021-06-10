@@ -988,10 +988,26 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             lineend.x = transformTobeMapped[3];
             lineend.y = transformTobeMapped[4];
             lineend.z = transformTobeMapped[5];
-
+            std::string id;
+            id = "__line" + std::to_string(frameID);
             // viewerCorner->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
             // viewerSurf->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
-            viewer->addLine(linestart, lineend, 0, 255, 255, std::to_string(frameID).c_str()); 
+            viewer->addLine(linestart, lineend, 0, 255, 255, id); 
+            
+            if (!skipCurFrame)
+            {
+               pcl::PointCloud<PointType>::Ptr locationPoints(new pcl::PointCloud<PointType>());
+               locationPoints->points.push_back(__framePointPOs);
+               pcl::visualization::PointCloudColorHandlerCustom<PointType> blue(locationPoints, 0, 255, 255);
+               id = "__location" + std::to_string(frameID);
+               viewer->addPointCloud(locationPoints, blue, id);
+               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, id);
+            }
+            else
+            {
+               skipCurFrame = false;
+            }
+            
             viewer->updateText( "Current frame: " + std::to_string(frameID), 10, 80, 25,1.0,1.0,1.0,"frameID");
             __frameId = frameID;
             __framePointPOs = linestart;
@@ -1388,7 +1404,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
          // 在全局地图中加入当前帧的特征
          if (skipCurFrame)
          {
-            skipCurFrame = false;
             continue;
          }
 
