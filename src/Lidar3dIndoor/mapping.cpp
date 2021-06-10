@@ -1026,374 +1026,397 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
             size_t maxIterations = 20;
 
-            for (int iterCount = 0; iterCount < maxIterations; iterCount++)
+            if (frameID % 4 == 0 && frameID > 350)
             {
+               Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
+               Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+               PointCloud::Ptr referrence(new PointCloud);
+               PointCloud::Ptr align(new PointCloud);
 
-               //前期静止不动的帧数
-               if (frameID < 350)
+               // 两帧乘上iniTransformVector
+               transformMatrix = Vector6dToRotate(iniTransformVector);
+               pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+               pcl::transformPointCloud(*frame1, *align, transformMatrix);
+
+               GICP.setInputTarget(referrence);
+               GICP.setInputSource(align);
+               GICP.align(*alignedframe);
+               ICPMatrix = GICP.getFinalTransformation();
+
+               transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+            }
+            else
+            {
+               for (int iterCount = 0; iterCount < maxIterations; iterCount++)
                {
-                  for (int i = 0; i < 6; i++)
-                     transformTobeMapped[i] = 0;
-                  continue;
-               }
 
-               laserCloudOri->clear(); //迭代中的中间变量
-               coeffSel->clear();
-
-               for (int i = 0; i < laserCloudCornerStackNum; i++)
-               {
-                  pointOri = laserCloudCornerStack->points[i];
-                  pointAssociateToMap(&pointOri, &pointSel);
-                  kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
-
-                  if (pointSearchSqDis[4] < 1.0)
+                  //前期静止不动的帧数
+                  if (frameID < 350)
                   {
-                     float cx = 0;
-                     float cy = 0;
-                     float cz = 0;
+                     for (int i = 0; i < 6; i++)
+                        transformTobeMapped[i] = 0;
+                     continue;
+                  }
 
-                     for (int j = 0; j < 5; j++)
+                  laserCloudOri->clear(); //迭代中的中间变量
+                  coeffSel->clear();
+
+                  for (int i = 0; i < laserCloudCornerStackNum; i++)
+                  {
+                     pointOri = laserCloudCornerStack->points[i];
+                     pointAssociateToMap(&pointOri, &pointSel);
+                     kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+
+                     if (pointSearchSqDis[4] < 1.0)
                      {
-                        cx += laserCloudCornerFromMap->points[pointSearchInd[j]].x;
-                        cy += laserCloudCornerFromMap->points[pointSearchInd[j]].y;
-                        cz += laserCloudCornerFromMap->points[pointSearchInd[j]].z;
-                     }
-                     //五个点的中心
-                     cx /= 5;
-                     cy /= 5;
-                     cz /= 5;
+                        float cx = 0;
+                        float cy = 0;
+                        float cz = 0;
 
-                     float a11 = 0;
-                     float a12 = 0;
-                     float a13 = 0;
-                     float a22 = 0;
-                     float a23 = 0;
-                     float a33 = 0;
-                     for (int j = 0; j < 5; j++)
-                     {
-                        float ax = laserCloudCornerFromMap->points[pointSearchInd[j]].x - cx;
-                        float ay = laserCloudCornerFromMap->points[pointSearchInd[j]].y - cy;
-                        float az = laserCloudCornerFromMap->points[pointSearchInd[j]].z - cz;
-
-                        a11 += ax * ax;
-                        a12 += ax * ay;
-                        a13 += ax * az;
-                        a22 += ay * ay;
-                        a23 += ay * az;
-                        a33 += az * az;
-                     }
-                     a11 /= 5;
-                     a12 /= 5;
-                     a13 /= 5;
-                     a22 /= 5;
-                     a23 /= 5;
-                     a33 /= 5;
-
-                     matA1.at<float>(0, 0) = a11;
-                     matA1.at<float>(0, 1) = a12;
-                     matA1.at<float>(0, 2) = a13;
-                     matA1.at<float>(1, 0) = a12;
-                     matA1.at<float>(1, 1) = a22;
-                     matA1.at<float>(1, 2) = a23;
-                     matA1.at<float>(2, 0) = a13;
-                     matA1.at<float>(2, 1) = a23;
-                     matA1.at<float>(2, 2) = a33;
-
-                     cv::eigen(matA1, matD1, matV1); //对最近邻五个特征点进行特征值平方分解
-
-                     if (matD1.at<float>(0, 0) > 3 * matD1.at<float>(0, 1))
-                     { //最大的特征值远大于第二大的特征值
-
-                        float x0 = pointSel.x;
-                        float y0 = pointSel.y;
-                        float z0 = pointSel.z;
-                        float x1 = cx + 0.1 * matV1.at<float>(0, 0);
-                        float y1 = cy + 0.1 * matV1.at<float>(0, 1);
-                        float z1 = cz + 0.1 * matV1.at<float>(0, 2);
-                        float x2 = cx - 0.1 * matV1.at<float>(0, 0);
-                        float y2 = cy - 0.1 * matV1.at<float>(0, 1);
-                        float z2 = cz - 0.1 * matV1.at<float>(0, 2);
-
-                        //某种方法判断是否真的是直线
-                        float a012 = sqrt(((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) + ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1)) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1)) + ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1)) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1)));
-
-                        float l12 = sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
-
-                        float la = ((y1 - y2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) + (z1 - z2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))) / a012 / l12;
-
-                        float lb = -((x1 - x2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) - (z1 - z2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
-
-                        float lc = -((x1 - x2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1)) + (y1 - y2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
-
-                        float ld2 = a012 / l12;
-
-                        pointProj = pointSel;
-                        pointProj.x -= la * ld2;
-                        pointProj.y -= lb * ld2;
-                        pointProj.z -= lc * ld2;
-
-                        float s = 1 - 0.9 * fabs(ld2);
-
-                        coeff.x = s * la;
-                        coeff.y = s * lb;
-                        coeff.z = s * lc;
-                        coeff.intensity = s * ld2;
-
-                        if (s > 0.1)
+                        for (int j = 0; j < 5; j++)
                         {
-                           laserCloudOri->push_back(pointOri);
-                           coeffSel->push_back(coeff);
+                           cx += laserCloudCornerFromMap->points[pointSearchInd[j]].x;
+                           cy += laserCloudCornerFromMap->points[pointSearchInd[j]].y;
+                           cz += laserCloudCornerFromMap->points[pointSearchInd[j]].z;
+                        }
+                        //五个点的中心
+                        cx /= 5;
+                        cy /= 5;
+                        cz /= 5;
+
+                        float a11 = 0;
+                        float a12 = 0;
+                        float a13 = 0;
+                        float a22 = 0;
+                        float a23 = 0;
+                        float a33 = 0;
+                        for (int j = 0; j < 5; j++)
+                        {
+                           float ax = laserCloudCornerFromMap->points[pointSearchInd[j]].x - cx;
+                           float ay = laserCloudCornerFromMap->points[pointSearchInd[j]].y - cy;
+                           float az = laserCloudCornerFromMap->points[pointSearchInd[j]].z - cz;
+
+                           a11 += ax * ax;
+                           a12 += ax * ay;
+                           a13 += ax * az;
+                           a22 += ay * ay;
+                           a23 += ay * az;
+                           a33 += az * az;
+                        }
+                        a11 /= 5;
+                        a12 /= 5;
+                        a13 /= 5;
+                        a22 /= 5;
+                        a23 /= 5;
+                        a33 /= 5;
+
+                        matA1.at<float>(0, 0) = a11;
+                        matA1.at<float>(0, 1) = a12;
+                        matA1.at<float>(0, 2) = a13;
+                        matA1.at<float>(1, 0) = a12;
+                        matA1.at<float>(1, 1) = a22;
+                        matA1.at<float>(1, 2) = a23;
+                        matA1.at<float>(2, 0) = a13;
+                        matA1.at<float>(2, 1) = a23;
+                        matA1.at<float>(2, 2) = a33;
+
+                        cv::eigen(matA1, matD1, matV1); //对最近邻五个特征点进行特征值平方分解
+
+                        if (matD1.at<float>(0, 0) > 3 * matD1.at<float>(0, 1))
+                        { //最大的特征值远大于第二大的特征值
+
+                           float x0 = pointSel.x;
+                           float y0 = pointSel.y;
+                           float z0 = pointSel.z;
+                           float x1 = cx + 0.1 * matV1.at<float>(0, 0);
+                           float y1 = cy + 0.1 * matV1.at<float>(0, 1);
+                           float z1 = cz + 0.1 * matV1.at<float>(0, 2);
+                           float x2 = cx - 0.1 * matV1.at<float>(0, 0);
+                           float y2 = cy - 0.1 * matV1.at<float>(0, 1);
+                           float z2 = cz - 0.1 * matV1.at<float>(0, 2);
+
+                           //某种方法判断是否真的是直线
+                           float a012 = sqrt(((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) + ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1)) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1)) + ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1)) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1)));
+
+                           float l12 = sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
+
+                           float la = ((y1 - y2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) + (z1 - z2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))) / a012 / l12;
+
+                           float lb = -((x1 - x2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1)) - (z1 - z2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
+
+                           float lc = -((x1 - x2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1)) + (y1 - y2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
+
+                           float ld2 = a012 / l12;
+
+                           pointProj = pointSel;
+                           pointProj.x -= la * ld2;
+                           pointProj.y -= lb * ld2;
+                           pointProj.z -= lc * ld2;
+
+                           float s = 1 - 0.9 * fabs(ld2);
+
+                           coeff.x = s * la;
+                           coeff.y = s * lb;
+                           coeff.z = s * lc;
+                           coeff.intensity = s * ld2;
+
+                           if (s > 0.1)
+                           {
+                              laserCloudOri->push_back(pointOri);
+                              coeffSel->push_back(coeff);
+                           }
                         }
                      }
                   }
-               }
 
-               for (int i = 0; i < laserCloudSurfStackNum; i++)
-               {
-                  pointOri = laserCloudSurfStack->points[i];
-                  pointAssociateToMap(&pointOri, &pointSel);
-                  kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
-
-                  if (pointSearchSqDis[4] < 1.0)
+                  for (int i = 0; i < laserCloudSurfStackNum; i++)
                   {
-                     //matA是五个点的坐标
-                     for (int j = 0; j < 5; j++)
+                     pointOri = laserCloudSurfStack->points[i];
+                     pointAssociateToMap(&pointOri, &pointSel);
+                     kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+
+                     if (pointSearchSqDis[4] < 1.0)
                      {
-                        matA0.at<float>(j, 0) = laserCloudSurfFromMap->points[pointSearchInd[j]].x;
-                        matA0.at<float>(j, 1) = laserCloudSurfFromMap->points[pointSearchInd[j]].y;
-                        matA0.at<float>(j, 2) = laserCloudSurfFromMap->points[pointSearchInd[j]].z;
-                     }
-                     //matB0 = (-1,-1,-1) 实际上是求五个点的投影向量
-                     cv::solve(matA0, matB0, matX0, cv::DECOMP_QR);
-
-                     float pa = matX0.at<float>(0, 0);
-                     float pb = matX0.at<float>(1, 0);
-                     float pc = matX0.at<float>(2, 0);
-                     float pd = 1;
-
-                     //齐次向量
-                     float ps = sqrt(pa * pa + pb * pb + pc * pc);
-                     pa /= ps;
-                     pb /= ps;
-                     pc /= ps;
-                     pd /= ps;
-
-                     bool planeValid = true;
-                     for (int j = 0; j < 5; j++)
-                     {
-                        //判断是否满足要求的平面
-                        if (fabs(pa * laserCloudSurfFromMap->points[pointSearchInd[j]].x +
-                                 pb * laserCloudSurfFromMap->points[pointSearchInd[j]].y +
-                                 pc * laserCloudSurfFromMap->points[pointSearchInd[j]].z + pd) > 0.2)
+                        //matA是五个点的坐标
+                        for (int j = 0; j < 5; j++)
                         {
-                           planeValid = false;
+                           matA0.at<float>(j, 0) = laserCloudSurfFromMap->points[pointSearchInd[j]].x;
+                           matA0.at<float>(j, 1) = laserCloudSurfFromMap->points[pointSearchInd[j]].y;
+                           matA0.at<float>(j, 2) = laserCloudSurfFromMap->points[pointSearchInd[j]].z;
+                        }
+                        //matB0 = (-1,-1,-1) 实际上是求五个点的投影向量
+                        cv::solve(matA0, matB0, matX0, cv::DECOMP_QR);
+
+                        float pa = matX0.at<float>(0, 0);
+                        float pb = matX0.at<float>(1, 0);
+                        float pc = matX0.at<float>(2, 0);
+                        float pd = 1;
+
+                        //齐次向量
+                        float ps = sqrt(pa * pa + pb * pb + pc * pc);
+                        pa /= ps;
+                        pb /= ps;
+                        pc /= ps;
+                        pd /= ps;
+
+                        bool planeValid = true;
+                        for (int j = 0; j < 5; j++)
+                        {
+                           //判断是否满足要求的平面
+                           if (fabs(pa * laserCloudSurfFromMap->points[pointSearchInd[j]].x +
+                                    pb * laserCloudSurfFromMap->points[pointSearchInd[j]].y +
+                                    pc * laserCloudSurfFromMap->points[pointSearchInd[j]].z + pd) > 0.2)
+                           {
+                              planeValid = false;
+                              break;
+                           }
+                        }
+
+                        if (planeValid)
+                        {
+                           float pd2 = pa * pointSel.x + pb * pointSel.y + pc * pointSel.z + pd;
+
+                           pointProj = pointSel;
+                           pointProj.x -= pa * pd2;
+                           pointProj.y -= pb * pd2;
+                           pointProj.z -= pc * pd2;
+
+                           float s = 1 - 0.9 * fabs(pd2) / sqrt(sqrt(pointSel.x * pointSel.x + pointSel.y * pointSel.y + pointSel.z * pointSel.z));
+
+                           coeff.x = s * pa;
+                           coeff.y = s * pb;
+                           coeff.z = s * pc;
+                           coeff.intensity = s * pd2;
+
+                           if (s > 0.1)
+                           {
+                              laserCloudOri->push_back(pointOri);
+                              coeffSel->push_back(coeff);
+                           }
+                        }
+                     }
+                  }
+
+                  float srx = sin(transformTobeMapped[0]);
+                  float crx = cos(transformTobeMapped[0]);
+                  float sry = sin(transformTobeMapped[1]);
+                  float cry = cos(transformTobeMapped[1]);
+                  float srz = sin(transformTobeMapped[2]);
+                  float crz = cos(transformTobeMapped[2]);
+
+                  int laserCloudSelNum = laserCloudOri->points.size();
+                  if (laserCloudSelNum < 50)
+                  {
+                     continue;
+                  }
+
+                  cv::Mat matA(laserCloudSelNum, 6, CV_32F, cv::Scalar::all(0));
+                  cv::Mat matAt(6, laserCloudSelNum, CV_32F, cv::Scalar::all(0));
+                  cv::Mat matAtA(6, 6, CV_32F, cv::Scalar::all(0));
+                  cv::Mat matB(laserCloudSelNum, 1, CV_32F, cv::Scalar::all(0));
+                  cv::Mat matAtB(6, 1, CV_32F, cv::Scalar::all(0));
+                  cv::Mat matX(6, 1, CV_32F, cv::Scalar::all(0));
+                  for (int i = 0; i < laserCloudSelNum; i++)
+                  {
+                     pointOri = laserCloudOri->points[i];
+                     coeff = coeffSel->points[i];
+
+                     float arx = (crx * sry * srz * pointOri.x + crx * crz * sry * pointOri.y - srx * sry * pointOri.z) * coeff.x + (-srx * srz * pointOri.x - crz * srx * pointOri.y - crx * pointOri.z) * coeff.y + (crx * cry * srz * pointOri.x + crx * cry * crz * pointOri.y - cry * srx * pointOri.z) * coeff.z;
+
+                     float ary = ((cry * srx * srz - crz * sry) * pointOri.x + (sry * srz + cry * crz * srx) * pointOri.y + crx * cry * pointOri.z) * coeff.x + ((-cry * crz - srx * sry * srz) * pointOri.x + (cry * srz - crz * srx * sry) * pointOri.y - crx * sry * pointOri.z) * coeff.z;
+
+                     float arz = ((crz * srx * sry - cry * srz) * pointOri.x + (-cry * crz - srx * sry * srz) * pointOri.y) * coeff.x + (crx * crz * pointOri.x - crx * srz * pointOri.y) * coeff.y + ((sry * srz + cry * crz * srx) * pointOri.x + (crz * sry - cry * srx * srz) * pointOri.y) * coeff.z;
+
+                     matA.at<float>(i, 0) = arx;
+                     matA.at<float>(i, 1) = ary;
+                     matA.at<float>(i, 2) = arz;
+                     matA.at<float>(i, 3) = coeff.x;
+                     matA.at<float>(i, 4) = coeff.y;
+                     matA.at<float>(i, 5) = coeff.z;
+                     matB.at<float>(i, 0) = -coeff.intensity;
+                  }
+
+                  cv::transpose(matA, matAt);
+                  matAtA = matAt * matA;
+                  matAtB = matAt * matB;
+                  cv::solve(matAtA, matAtB, matX, cv::DECOMP_QR);
+
+                  if (iterCount == 0)
+                  {
+                     cv::Mat matE(1, 6, CV_32F, cv::Scalar::all(0));
+                     cv::Mat matV(6, 6, CV_32F, cv::Scalar::all(0));
+                     cv::Mat matV2(6, 6, CV_32F, cv::Scalar::all(0));
+
+                     cv::eigen(matAtA, matE, matV);
+                     matV.copyTo(matV2);
+
+                     isDegenerate = false;
+                     float eignThre[6] = {100, 100, 100, 100, 100, 100};
+                     for (int i = 5; i >= 0; i--)
+                     {
+                        if (matE.at<float>(0, i) < eignThre[i])
+                        {
+                           for (int j = 0; j < 6; j++)
+                           {
+                              matV2.at<float>(i, j) = 0;
+                           }
+                           isDegenerate = true;
+                        }
+                        else
+                        {
                            break;
                         }
                      }
+                     matP = matV.inv() * matV2;
+                  }
 
-                     if (planeValid)
+                  if (isDegenerate)
+                  {
+                     cv::Mat matX2(6, 1, CV_32F, cv::Scalar::all(0));
+                     matX.copyTo(matX2);
+                     matX = matP * matX2;
+                  }
+
+                  transformTobeMapped[0] += matX.at<float>(0, 0);
+                  transformTobeMapped[1] += matX.at<float>(1, 0);
+                  transformTobeMapped[2] += matX.at<float>(2, 0);
+                  transformTobeMapped[3] += matX.at<float>(3, 0);
+                  transformTobeMapped[4] += matX.at<float>(4, 0);
+                  transformTobeMapped[5] += matX.at<float>(5, 0);
+
+                  float deltaR = sqrt(
+                      pow(rad2deg(matX.at<float>(0, 0)), 2) +
+                      pow(rad2deg(matX.at<float>(1, 0)), 2) +
+                      pow(rad2deg(matX.at<float>(2, 0)), 2));
+                  float deltaT = sqrt(
+                      pow(matX.at<float>(3, 0) * 100, 2) +
+                      pow(matX.at<float>(4, 0) * 100, 2) +
+                      pow(matX.at<float>(5, 0) * 100, 2));
+
+                  // if (deltaR < 0.005 && deltaT < 0.01)
+                  float sumDeltaR = sqrt(
+                      pow(rad2deg(transformTobeMapped[0] - iniTransformVector[0]), 2) +
+                      pow(rad2deg(transformTobeMapped[1] - iniTransformVector[1]), 2) +
+                      pow(rad2deg(transformTobeMapped[2] - iniTransformVector[2]), 2));
+
+                  float sumDeltaT = sqrt(
+                                        pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
+                                        pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
+                                        pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) /
+                                    100;
+
+                  if (deltaR < 0.05 && deltaT < 0.01 || iterCount >= maxIterations - 1)
+                  {
+                     if (isShowCloud && TEST)
                      {
-                        float pd2 = pa * pointSel.x + pb * pointSel.y + pc * pointSel.z + pd;
-
-                        pointProj = pointSel;
-                        pointProj.x -= pa * pd2;
-                        pointProj.y -= pb * pd2;
-                        pointProj.z -= pc * pd2;
-
-                        float s = 1 - 0.9 * fabs(pd2) / sqrt(sqrt(pointSel.x * pointSel.x + pointSel.y * pointSel.y + pointSel.z * pointSel.z));
-
-                        coeff.x = s * pa;
-                        coeff.y = s * pb;
-                        coeff.z = s * pc;
-                        coeff.intensity = s * pd2;
-
-                        if (s > 0.1)
+                        if (iterCount >= maxIterations - 1)
                         {
-                           laserCloudOri->push_back(pointOri);
-                           coeffSel->push_back(coeff);
+                           cout << "***********************************************************************\n";
+                           cout << "Iteration = " << iterCount << "\t\t"
+                                << "dR,dT = " << deltaR << "\t" << deltaT << endl;
+                           cout << "***********************************************************************\n";
+                        }
+                        else
+                           cout << "Iteration = " << iterCount << "\t\t"
+                                << "dR,dT = " << deltaR << "\t" << deltaT << endl;
+
+                        // if (sumDeltaT > 0.14 || sumDeltaR > 5.1)
+                        //    continue;
+                        // transformTobeMapped = iniTransformVector;
+
+                        cout << "Iteration = " << iterCount << "\t\t"
+                             << "sdR,sdT = " << sumDeltaR << "\t" << sumDeltaT << endl;
+                        cout << endl;
+                     }
+                     errorWrite << frameID << ' ' << iterCount << ' ' << sumDeltaR << ' ' << sumDeltaT << endl;
+                     int lastCount = 10;
+
+                     // 比较预测值和计算值之间的差别
+                     /*
+                     if (frameID > 370)
+                     {
+                        float meanDist = 0;
+                        float sigmaDist = 0;
+                        for (size_t i = 0; i < lastCount; i++)
+                           meanDist += distLast20[i];
+                        meanDist /= lastCount; //平均帧间距离
+
+                        for (size_t i = 0; i < lastCount; i++)
+                           sigmaDist += pow(distLast20[i] - meanDist, 2);
+                        sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
+
+                        float fitDist = 1.5 * distLast20[(frameID - 351) % 20] - 0.5 * distLast20[(frameID - 352) % 20]; // vt + at/2
+                        cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << "\tfitDist = " << fitDist << endl;
+                        if (fabs(sumDeltaT - meanDist) > 3 * sigmaDist || sumDeltaT > 0.05)
+                        {
+                           cout << "----------------------skip--------------------------\n";
+                           skipCurFrame = true;
+                           // Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
+                           // Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+                           // PointCloud::Ptr referrence(new PointCloud);
+                           // PointCloud::Ptr align(new PointCloud);
+
+                           // // 两帧乘上iniTransformVector
+                           // transformMatrix = Vector6dToRotate(iniTransformVector);
+                           // pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+                           // pcl::transformPointCloud(*frame1, *align, transformMatrix);
+
+                           // GICP.setInputTarget(referrence);
+                           // GICP.setInputSource(align);
+                           // GICP.align(*alignedframe);
+                           // ICPMatrix = GICP.getFinalTransformation();
+
+                           // transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
                         }
                      }
+                     */
+
+                     // 循环保存前20个帧间距离
+                     transformLast20[(frameID) % 20] = transformTobeMapped;
+                     distLast20[(frameID) % 20] = sumDeltaT;
+
+                     break;
                   }
-               }
-
-               float srx = sin(transformTobeMapped[0]);
-               float crx = cos(transformTobeMapped[0]);
-               float sry = sin(transformTobeMapped[1]);
-               float cry = cos(transformTobeMapped[1]);
-               float srz = sin(transformTobeMapped[2]);
-               float crz = cos(transformTobeMapped[2]);
-
-               int laserCloudSelNum = laserCloudOri->points.size();
-               if (laserCloudSelNum < 50)
-               {
-                  continue;
-               }
-
-               cv::Mat matA(laserCloudSelNum, 6, CV_32F, cv::Scalar::all(0));
-               cv::Mat matAt(6, laserCloudSelNum, CV_32F, cv::Scalar::all(0));
-               cv::Mat matAtA(6, 6, CV_32F, cv::Scalar::all(0));
-               cv::Mat matB(laserCloudSelNum, 1, CV_32F, cv::Scalar::all(0));
-               cv::Mat matAtB(6, 1, CV_32F, cv::Scalar::all(0));
-               cv::Mat matX(6, 1, CV_32F, cv::Scalar::all(0));
-               for (int i = 0; i < laserCloudSelNum; i++)
-               {
-                  pointOri = laserCloudOri->points[i];
-                  coeff = coeffSel->points[i];
-
-                  float arx = (crx * sry * srz * pointOri.x + crx * crz * sry * pointOri.y - srx * sry * pointOri.z) * coeff.x + (-srx * srz * pointOri.x - crz * srx * pointOri.y - crx * pointOri.z) * coeff.y + (crx * cry * srz * pointOri.x + crx * cry * crz * pointOri.y - cry * srx * pointOri.z) * coeff.z;
-
-                  float ary = ((cry * srx * srz - crz * sry) * pointOri.x + (sry * srz + cry * crz * srx) * pointOri.y + crx * cry * pointOri.z) * coeff.x + ((-cry * crz - srx * sry * srz) * pointOri.x + (cry * srz - crz * srx * sry) * pointOri.y - crx * sry * pointOri.z) * coeff.z;
-
-                  float arz = ((crz * srx * sry - cry * srz) * pointOri.x + (-cry * crz - srx * sry * srz) * pointOri.y) * coeff.x + (crx * crz * pointOri.x - crx * srz * pointOri.y) * coeff.y + ((sry * srz + cry * crz * srx) * pointOri.x + (crz * sry - cry * srx * srz) * pointOri.y) * coeff.z;
-
-                  matA.at<float>(i, 0) = arx;
-                  matA.at<float>(i, 1) = ary;
-                  matA.at<float>(i, 2) = arz;
-                  matA.at<float>(i, 3) = coeff.x;
-                  matA.at<float>(i, 4) = coeff.y;
-                  matA.at<float>(i, 5) = coeff.z;
-                  matB.at<float>(i, 0) = -coeff.intensity;
-               }
-
-               cv::transpose(matA, matAt);
-               matAtA = matAt * matA;
-               matAtB = matAt * matB;
-               cv::solve(matAtA, matAtB, matX, cv::DECOMP_QR);
-
-               if (iterCount == 0)
-               {
-                  cv::Mat matE(1, 6, CV_32F, cv::Scalar::all(0));
-                  cv::Mat matV(6, 6, CV_32F, cv::Scalar::all(0));
-                  cv::Mat matV2(6, 6, CV_32F, cv::Scalar::all(0));
-
-                  cv::eigen(matAtA, matE, matV);
-                  matV.copyTo(matV2);
-
-                  isDegenerate = false;
-                  float eignThre[6] = {100, 100, 100, 100, 100, 100};
-                  for (int i = 5; i >= 0; i--)
-                  {
-                     if (matE.at<float>(0, i) < eignThre[i])
-                     {
-                        for (int j = 0; j < 6; j++)
-                        {
-                           matV2.at<float>(i, j) = 0;
-                        }
-                        isDegenerate = true;
-                     }
-                     else
-                     {
-                        break;
-                     }
-                  }
-                  matP = matV.inv() * matV2;
-               }
-
-               if (isDegenerate)
-               {
-                  cv::Mat matX2(6, 1, CV_32F, cv::Scalar::all(0));
-                  matX.copyTo(matX2);
-                  matX = matP * matX2;
-               }
-
-               transformTobeMapped[0] += matX.at<float>(0, 0);
-               transformTobeMapped[1] += matX.at<float>(1, 0);
-               transformTobeMapped[2] += matX.at<float>(2, 0);
-               transformTobeMapped[3] += matX.at<float>(3, 0);
-               transformTobeMapped[4] += matX.at<float>(4, 0);
-               transformTobeMapped[5] += matX.at<float>(5, 0);
-
-               float deltaR = sqrt(
-                   pow(rad2deg(matX.at<float>(0, 0)), 2) +
-                   pow(rad2deg(matX.at<float>(1, 0)), 2) +
-                   pow(rad2deg(matX.at<float>(2, 0)), 2));
-               float deltaT = sqrt(
-                   pow(matX.at<float>(3, 0) * 100, 2) +
-                   pow(matX.at<float>(4, 0) * 100, 2) +
-                   pow(matX.at<float>(5, 0) * 100, 2));
-
-               // if (deltaR < 0.005 && deltaT < 0.01)
-               float sumDeltaR = sqrt(
-                   pow(rad2deg(transformTobeMapped[0] - iniTransformVector[0]), 2) +
-                   pow(rad2deg(transformTobeMapped[1] - iniTransformVector[1]), 2) +
-                   pow(rad2deg(transformTobeMapped[2] - iniTransformVector[2]), 2));
-
-               float sumDeltaT = sqrt(
-                                     pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
-                                     pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
-                                     pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) /
-                                 100;
-
-               if (deltaR < 0.05 && deltaT < 0.01 || iterCount >= maxIterations - 1)
-               {
-                  if (isShowCloud && TEST)
-                  {
-                     if (iterCount >= maxIterations - 1)
-                     {
-                        cout << "***********************************************************************\n";
-                        cout << "Iteration = " << iterCount << "\t\t"
-                             << "dR,dT = " << deltaR << "\t" << deltaT << endl;
-                        cout << "***********************************************************************\n";
-                     }
-                     else
-                        cout << "Iteration = " << iterCount << "\t\t"
-                             << "dR,dT = " << deltaR << "\t" << deltaT << endl;
-
-                     // if (sumDeltaT > 0.14 || sumDeltaR > 5.1)
-                     //    continue;
-                     // transformTobeMapped = iniTransformVector;
-
-                     cout << "Iteration = " << iterCount << "\t\t"
-                          << "sdR,sdT = " << sumDeltaR << "\t" << sumDeltaT << endl;
-                     cout << endl;
-                  }
-                  errorWrite << frameID << ' ' << iterCount << ' ' << sumDeltaR << ' ' << sumDeltaT << endl;
-                  int lastCount = 10;
-
-                  // 比较预测值和计算值之间的差别
-
-                  if (frameID > 370)
-                  {
-                     float meanDist = 0;
-                     float sigmaDist = 0;
-                     for (size_t i = 0; i < lastCount; i++)
-                        meanDist += distLast20[i];
-                     meanDist /= lastCount; //平均帧间距离
-
-                     for (size_t i = 0; i < lastCount; i++)
-                        sigmaDist += pow(distLast20[i] - meanDist, 2);
-                     sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
-
-                     float fitDist = 1.5 * distLast20[(frameID - 351) % 20] - 0.5 * distLast20[(frameID - 352) % 20]; // vt + at/2
-                     cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << "\tfitDist = " << fitDist << endl;
-                     if (fabs(deltaT - meanDist) > 4 * sigmaDist || deltaT > 0.1)
-                     {
-                        cout << "---------------------------------------------------\n";
-                        skipCurFrame = true;
-                        Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
-                        Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
-                        PointCloud::Ptr referrence(new PointCloud);
-                        PointCloud::Ptr align(new PointCloud);
-
-                        // 两帧乘上iniTransformVector
-                        transformMatrix = Vector6dToRotate(iniTransformVector);
-                        pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
-                        pcl::transformPointCloud(*frame1, *align, transformMatrix);
-
-                        GICP.setInputTarget(referrence);
-                        GICP.setInputSource(align);
-                        GICP.align(*alignedframe);
-                        ICPMatrix = GICP.getFinalTransformation();
-
-                        transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
-                     }
-                  }
-
-                  // 循环保存前20个帧间距离
-                  transformLast20[(frameID) % 20] = transformTobeMapped;
-                  distLast20[(frameID) % 20] = sumDeltaT;
-
-                  break;
                }
             }
             transformUpdate();
