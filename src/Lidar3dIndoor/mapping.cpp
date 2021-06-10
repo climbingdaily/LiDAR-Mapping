@@ -986,7 +986,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
             size_t maxIterations = 20;
 
-            if (frameID % 4 == 0 && frameID > 350)
+            if (false)
             {
                Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
@@ -1350,22 +1350,22 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                         {
                            cout << "----------------------skip--------------------------\n";
                            skipCurFrame = true;
-                           // Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
-                           // Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
-                           // PointCloud::Ptr referrence(new PointCloud);
-                           // PointCloud::Ptr align(new PointCloud);
+                           Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
+                           Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+                           PointCloud::Ptr referrence(new PointCloud);
+                           PointCloud::Ptr align(new PointCloud);
 
-                           // // 两帧乘上iniTransformVector
-                           // transformMatrix = Vector6dToRotate(iniTransformVector);
-                           // pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
-                           // pcl::transformPointCloud(*frame1, *align, transformMatrix);
+                           // 两帧乘上iniTransformVector
+                           transformMatrix = Vector6dToRotate(iniTransformVector);
+                           pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+                           pcl::transformPointCloud(*frame1, *align, transformMatrix);
 
-                           // GICP.setInputTarget(referrence);
-                           // GICP.setInputSource(align);
-                           // GICP.align(*alignedframe);
-                           // ICPMatrix = GICP.getFinalTransformation();
+                           GICP.setInputTarget(referrence);
+                           GICP.setInputSource(align);
+                           GICP.align(*alignedframe);
+                           ICPMatrix = GICP.getFinalTransformation();
 
-                           // transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+                           transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
                         }
                      }
 
