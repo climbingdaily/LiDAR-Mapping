@@ -986,7 +986,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
             size_t maxIterations = 20;
 
-            if (false)
+            if (frameID % 4 == 0 && frameID > 350)
             {
                Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
@@ -1309,79 +1309,70 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                      if (isShowCloud && TEST)
                      {
                         if (iterCount >= maxIterations - 1)
-                        {
                            cout << "***********************************************************************\n";
-                           cout << "Iteration = " << iterCount << "\t\t"
-                                << "dR,dT = " << deltaR << "\t" << deltaT << endl;
-                           cout << "***********************************************************************\n";
-                        }
-                        else
-                           cout << "Iteration = " << iterCount << "\t\t"
-                                << "dR,dT = " << deltaR << "\t" << deltaT << endl;
-
-                        // if (sumDeltaT > 0.14 || sumDeltaR > 5.1)
-                        //    continue;
-                        // transformTobeMapped = iniTransformVector;
-
-                        cout << "Iteration = " << iterCount << "\t\t"
-                             << "sdR,sdT = " << sumDeltaR << "\t" << sumDeltaT << endl;
+                        cout << "Iteration: " << iterCount << "\tdR: " << deltaR << "\tdT" << deltaT << endl;
+                        cout << "Iteration: " << iterCount << "\tsdR: " << sumDeltaR << "\tsdT" << sumDeltaT << endl;
                         cout << endl;
                      }
                      errorWrite << frameID << ' ' << iterCount << ' ' << sumDeltaR << ' ' << sumDeltaT << endl;
-                     int lastCount = 10;
-
-                     // 比较预测值和计算值之间的差别
-                     if (frameID > 370)
-                     {
-                        float meanDist = 0;
-                        float sigmaDist = 0;
-                        for (size_t i = 0; i < lastCount; i++)
-                           meanDist += distLast20[i];
-                        meanDist /= lastCount; //平均帧间距离
-
-                        for (size_t i = 0; i < lastCount; i++)
-                           sigmaDist += pow(distLast20[i] - meanDist, 2);
-                        sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
-
-                        cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << endl;
-                        if (sumDeltaT > 0.06) // 
-                        {
-                           Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
-                           Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
-                           PointCloud::Ptr referrence(new PointCloud);
-                           PointCloud::Ptr align(new PointCloud);
-
-                           // 两帧乘上iniTransformVector
-                           transformMatrix = Vector6dToRotate(iniTransformVector);
-                           pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
-                           pcl::transformPointCloud(*frame1, *align, transformMatrix);
-
-                           GICP.setInputTarget(referrence);
-                           GICP.setInputSource(align);
-                           GICP.align(*alignedframe);
-                           ICPMatrix = GICP.getFinalTransformation();
-
-                           transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
-                           sumDeltaT = sqrt(
-                                           pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
-                                           pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
-                                           pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
-                        }
-                     }
-                     if (sumDeltaT > 0.06)
-                     {
-                           cout << "----------------------skip--------------------------\n";
-                           skipCurFrame = true;
-                     }
-
-                     // 循环保存前20个帧间距离
-                     transformLast20[(frameID) % 20] = transformTobeMapped;
-                     distLast20[(frameID) % 20] = sumDeltaT;
 
                      break;
                   }
                }
             }
+
+            float sumDeltaT = sqrt(
+                        pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
+                        pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
+                        pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
+
+            // 比较预测值和计算值之间的差别
+            if (frameID > 370)
+            {
+               int lastCount = 10;
+               float meanDist = 0;
+               float sigmaDist = 0;
+
+               for (size_t i = 0; i < lastCount; i++)
+                  meanDist += distLast20[i];
+               meanDist /= lastCount; //平均帧间距离
+
+               for (size_t i = 0; i < lastCount; i++)
+                  sigmaDist += pow(distLast20[i] - meanDist, 2);
+               sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
+
+               cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << endl;
+            }
+
+            if (sumDeltaT > 0.10) //
+            {
+               cout << "----------------------skip--------------------------\n";
+               skipCurFrame = true;
+               // Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
+               // Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+               // PointCloud::Ptr referrence(new PointCloud);
+               // PointCloud::Ptr align(new PointCloud);
+
+               // // 两帧乘上iniTransformVector
+               // transformMatrix = Vector6dToRotate(iniTransformVector);
+               // pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+               // pcl::transformPointCloud(*frame1, *align, transformMatrix);
+
+               // GICP.setInputTarget(referrence);
+               // GICP.setInputSource(align);
+               // GICP.align(*alignedframe);
+               // ICPMatrix = GICP.getFinalTransformation();
+
+               // transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+               // sumDeltaT = sqrt(
+               //                 pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
+               //                 pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
+               //                 pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
+            }
+            
+            // 循环保存前20个帧间距离
+            transformLast20[(frameID) % 20] = transformTobeMapped;
+            distLast20[(frameID) % 20] = sumDeltaT;
             transformUpdate();
          }
          *framePre = *frame1;
