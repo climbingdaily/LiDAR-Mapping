@@ -338,7 +338,7 @@ inline void showTime(PointCloud::Ptr frame, int frameID, std::string frameName =
       ft = st - start_frameTime; 
    else
       ft = frame->points.back().data_n[0] - frame->points[0].data_n[0] + frame->points.back().data_n[1] - frame->points[0].data_n[1];
-   cout << frameName << "\tFrameID: " << frameID << "\tsize = " << frame->points.size() << "\t\t";
+   cout << frameName << "\tFrameID: " << frameID << "\tsize = " << frame->points.size() << "\t";
    cout << "statTime = " << std::fixed << std::setprecision(2) << st
         << "\tframeTime = " << std::fixed << std::setprecision(4) << ft
         << endl;

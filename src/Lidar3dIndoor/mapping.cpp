@@ -377,7 +377,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    PointCloud::Ptr framePre(new PointCloud);
    PointCloud::Ptr frameGroup(new PointCloud);
    PointCloud::Ptr frame2(new PointCloud);
-   PointCloud::Ptr alignedframe(new PointCloud);
    pcl::visualization::PCLVisualizer *viewer;
    pcl::visualization::PCLVisualizer *viewerCorner;
    pcl::visualization::PCLVisualizer *viewerSurf;
@@ -992,6 +991,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
                PointCloud::Ptr referrence(new PointCloud);
                PointCloud::Ptr align(new PointCloud);
+               PointCloud::Ptr alignedframe(new PointCloud);
 
                // 两帧乘上iniTransformVector
                transformMatrix = Vector6dToRotate(iniTransformVector);
@@ -1310,15 +1310,45 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                      {
                         if (iterCount >= maxIterations - 1)
                            cout << "***********************************************************************\n";
-                        cout << "Iteration: " << iterCount << "\tdR: " << deltaR << "\tdT" << deltaT << endl;
-                        cout << "Iteration: " << iterCount << "\tsdR: " << sumDeltaR << "\tsdT" << sumDeltaT << endl;
+                        cout << "Iteration: " << iterCount << "\tdR: " << deltaR << "\tdT: " << deltaT << endl;
+                        cout << "Iteration: " << iterCount << "\tsdR: " << sumDeltaR << "\tsdT: " << sumDeltaT << endl;
                         cout << endl;
                      }
                      errorWrite << frameID << ' ' << iterCount << ' ' << sumDeltaR << ' ' << sumDeltaT << endl;
+                     
+                     /* 
+                     if (sumDeltaT > 0.10) //
+                     {
+                        // cout << "----------------------skip--------------------------\n";
+                        // skipCurFrame = true;
+                        Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
+                        Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+                        PointCloud::Ptr referrence(new PointCloud);
+                        PointCloud::Ptr align(new PointCloud);
+                        PointCloud::Ptr alignedframe(new PointCloud);
 
+                        // 两帧乘上iniTransformVector
+                        transformMatrix = Vector6dToRotate(iniTransformVector);
+                        pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+                        pcl::transformPointCloud(*frame1, *align, transformMatrix);
+
+                        GICP.setInputTarget(referrence);
+                        GICP.setInputSource(align);
+                        GICP.align(*alignedframe);
+                        ICPMatrix = GICP.getFinalTransformation();
+
+                        transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+                        sumDeltaT = sqrt(
+                                        pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
+                                        pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
+                                        pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) /
+                                    100;
+                     }
+                     */
                      break;
                   }
                }
+               
             }
 
             float sumDeltaT = sqrt(
@@ -1327,6 +1357,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                         pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
 
             // 比较预测值和计算值之间的差别
+            /*
             if (frameID > 370)
             {
                int lastCount = 10;
@@ -1340,36 +1371,19 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                for (size_t i = 0; i < lastCount; i++)
                   sigmaDist += pow(distLast20[i] - meanDist, 2);
                sigmaDist = sqrt(sigmaDist / lastCount); //帧间距离的标准差
-
-               cout << "meanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << endl;
+               
+               if (isShowCloud && TEST)
+                  cout << "frameID:" << frameID << "\tmeanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << endl;
             }
+            */
 
             if (sumDeltaT > 0.10) //
             {
-               cout << "----------------------skip--------------------------\n";
+               if (isShowCloud && TEST)
+                  cout << "----------------------skip--------------------------\n";
                skipCurFrame = true;
-               // Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
-               // Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
-               // PointCloud::Ptr referrence(new PointCloud);
-               // PointCloud::Ptr align(new PointCloud);
-
-               // // 两帧乘上iniTransformVector
-               // transformMatrix = Vector6dToRotate(iniTransformVector);
-               // pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
-               // pcl::transformPointCloud(*frame1, *align, transformMatrix);
-
-               // GICP.setInputTarget(referrence);
-               // GICP.setInputSource(align);
-               // GICP.align(*alignedframe);
-               // ICPMatrix = GICP.getFinalTransformation();
-
-               // transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
-               // sumDeltaT = sqrt(
-               //                 pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
-               //                 pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
-               //                 pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
             }
-            
+
             // 循环保存前20个帧间距离
             transformLast20[(frameID) % 20] = transformTobeMapped;
             distLast20[(frameID) % 20] = sumDeltaT;
@@ -1379,12 +1393,14 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
          if (isShowCloud)
          {
+            //    //按照分块来显示点云 
             // for (int i = 0; i < laserCloudValidNum; i++)
             // {
-            //    //按照分块来显示点云 
             //    viewer->removePointCloud(std::to_string(laserCloudValidInd[i]).c_str());
             //    addCloud(laserCloudSurfArray[laserCloudValidInd[i]], laserCloudValidInd[i], viewer);
             // }
+
+            // 轨迹线
             lineend.x = transformTobeMapped[3];
             lineend.y = transformTobeMapped[4];
             lineend.z = transformTobeMapped[5];
@@ -1394,34 +1410,38 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             // viewerSurf->addLine(linestart, lineend, 255, 255, 255, std::to_string(frameID).c_str());
             viewer->addLine(linestart, lineend, 0, 255, 255, id);
 
+            // 轨迹点
             pcl::PointCloud<PointType>::Ptr locationPoints(new pcl::PointCloud<PointType>());
             locationPoints->points.push_back(lineend);
             pcl::visualization::PointCloudColorHandlerCustom<PointType> blue(locationPoints, 0, 255, 255);
             id = "__location" + std::to_string(frameID);
             viewer->addPointCloud(locationPoints, blue, id);
 
-            if (!skipCurFrame)
-            {
-               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, id);
-            }
-            else
+            //标记异常轨迹点
+            if (skipCurFrame)
             {
                viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 20, id);
                viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, id);
-               // id = "__skipframe" + std::to_string(frameID);
-               // PointType b3 = __framePointPOs;
-               // b3.x -= 0.1;
-               // b3.y -= 0.1;
-               // b3.z -= 0.1;
-               // viewer->addText3D(std::to_string(__frameId), b3, 0.2, 1.0, 1.0, 1.0, id);
             }
+            else
+               viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, id);
             
+            // 更新帧号显示
             viewer->updateText( "Current frame: " + std::to_string(frameID), 10, 80, 25,1.0,1.0,1.0,"frameID");
+            
+            linestart = lineend;
             __frameId = frameID;
             __framePointPOs = linestart;
-            linestart = lineend;
+
             // ShowCloud(laserCloudCornerFromMap, viewerCorner);
             // ShowCloud(laserCloudSurfFromMap, viewerSurf);
+            // 显示点云
+            Eigen::Matrix4f transformMatrix = Vector6dToRotate(transformTobeMapped);
+            pcl::transformPointCloud(*frame1, *frame1, transformMatrix);
+            viewer->removePointCloud("whiteCurFrame");
+            pcl::visualization::PointCloudColorHandlerCustom<PointType> whiteFeature(frame1, 255, 255, 255);
+            viewer->addPointCloud(frame1, whiteFeature, "whiteCurFrame");
+
             ShowCloud(laserCloudCornerFromMap, viewer, "corner");
             ShowCloud(laserCloudSurfFromMap, viewer, "surf");
          }
