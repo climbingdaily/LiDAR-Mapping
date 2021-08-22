@@ -2,7 +2,9 @@
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "files.associations": {
         "cmath": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "iostream": "cpp",
+        "iosfwd": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

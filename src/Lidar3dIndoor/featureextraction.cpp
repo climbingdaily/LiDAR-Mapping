@@ -40,7 +40,7 @@ void FeatureExtraction::setInputCloud(pcl::PointCloud<PointType> &laserCloudIn)
    std::vector<pcl::PointCloud<PointType>> laserCloudScans(N_SCANS);
    for (int i = 0; i < cloudSize; i++)
    {
-      laserCloudScans[laserCloudIn.points[i].data_n[2]].push_back(laserCloudIn.points[i]); //按照线存储
+      laserCloudScans[int(laserCloudIn.points[i].data_n[2])].push_back(laserCloudIn.points[i]); //按照线存储
    }
    cloudSize = count;
    //pcl::PointCloud<PointType>::Ptr laserCloud(new pcl::PointCloud<PointType>());

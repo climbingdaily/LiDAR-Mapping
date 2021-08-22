@@ -387,16 +387,21 @@ inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile, 
    double timestamp;
    int ring;
    bool firstpoint = true;
+   std::string line;
 
    if(!cloudfile)
    {
       cout << "读取XYZ文件错误：" << xyzfile << endl;
       exit(-1);
    }
-   while(cloudfile)
+   while(getline(cloudfile, line))
    {
+      line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+      line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+      std::istringstream line_data(line);
+
       PointType pt;
-      cloudfile >> pt.x >> pt.y >> pt.z >> pt.intensity >> timestamp >> ring;
+      line_data >> pt.x >> pt.y >> pt.z >> pt.intensity >> timestamp >> ring;
 
       // skip NaN and INF valued points
       if (!pcl_isfinite(pt.x) ||

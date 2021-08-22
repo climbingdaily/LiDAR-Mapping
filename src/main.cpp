@@ -154,7 +154,12 @@ int main(int argc, char **argv)
             printf("设置数据类型错误！");
             return -1;
          } 
-         if (strcmp(argv[i], "2") == 0)
+         if (strcmp(argv[i], "3") == 0)
+         {
+            nscans = 64;
+            calibFile = exepath + "/resource/VLP-32c.xml";
+         }
+         else if (strcmp(argv[i], "2") == 0)
          {
             nscans = 32;
             calibFile = exepath + "/resource/VLP-32c.xml";
@@ -183,7 +188,12 @@ int main(int argc, char **argv)
             printf("设置数据类型错误！");
             return -1;
          } 
-         if (strcmp(argv[i], "2") == 0)
+         if (strcmp(argv[i], "3") == 0)
+         {
+            nscans = 64;
+            calibFile = exepath + "/resource/VLP-32c.xml";
+         }
+         else if (strcmp(argv[i], "2") == 0)
          {
             nscans2 = 32;
             calibFile2 = exepath + "/resource/VLP-32c.xml";

@@ -985,7 +985,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
             size_t maxIterations = 20;
 
-            if (frameID % 4 == 0 && frameID > 350)
+            if (frameID % 4 == 0 && frameID > 350 && false)
             {
                Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
@@ -1009,15 +1009,6 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             {
                for (int iterCount = 0; iterCount < maxIterations; iterCount++)
                {
-
-                  //前期静止不动的帧数
-                  if (frameID < 350)
-                  {
-                     for (int i = 0; i < 6; i++)
-                        transformTobeMapped[i] = 0;
-                     continue;
-                  }
-
                   laserCloudOri->clear(); //迭代中的中间变量
                   coeffSel->clear();
 
