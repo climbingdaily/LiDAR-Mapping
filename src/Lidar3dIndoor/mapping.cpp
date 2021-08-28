@@ -985,7 +985,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
             size_t maxIterations = 20;
 
-            if (frameID % 4 == 0 && frameID > 350 && false)
+            if (frameID % 4 == 0)
             {
                Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
