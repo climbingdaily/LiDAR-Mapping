@@ -214,11 +214,17 @@ void AddTimeStamp::Run()
         }
         else
         {
-            curTimeStamp = pc_reader.getTimpStamp(frame_id); //直接从pcd的文件名读出时间戳
+            pc_reader.frameNumber = frame_id;
+            if (pc_reader.readPointCloud(cloudp) == -1) //现从点云中读出时间戳
+                continue;
+            if (cloudp->points.size() < 1000)
+                continue;
+            curTimeStamp = pc_reader.getTimpStamp(frame_id);
             pcdName = pc_reader.getPcdById(frame_id);
             // getCloudFromPcd(cloud, pcap_file + '/' + pcdName);
             replace(pcdName.begin(), pcdName.end(), '.', '_');
-            odomfolder = outputfolder + '/' + pcdName.substr(0,pcdName.rfind('_'));
+            std::string odomName = std::to_string(int(curTimeStamp)) + '_' + std::to_string(int((curTimeStamp - int(curTimeStamp)) * 1e3));
+            odomfolder = outputfolder + '/' + odomName;
         }
         savePcd = odomfolder + ".pcd";
         // pcl::io::savePCDFileBinary(savePcd, *cloud);

@@ -6,5 +6,6 @@
         "iostream": "cpp",
         "iosfwd": "cpp"
     },
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "python.pythonPath": "/home/daiyudi/miniconda3/bin/python3.9"
 }

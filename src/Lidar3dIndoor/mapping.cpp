@@ -485,7 +485,9 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
    int frameOffset = 0;
    float preStartTime, curStartTime, frameTime;
-   double frame_startTime = 0;
+   double frame_curTime = 0;
+   double frame_preTime = 0;
+   double distance_traveled = 0;
    int fitCount = 0;
    bool skipCurFrame = false;
    float distLast20[20] = {0};
@@ -592,9 +594,9 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
       {
          // viewerCorner->spinOnce();
          // viewerSurf->spinOnce();
-         showTime(frame1, frameID, "Test", frame_startTime);
+         showTime(frame1, frameID, "Test", frame_curTime);
       }
-      frame_startTime = frame1->points[0].data_n[0] + frame1->points[0].data_n[1];
+      frame_curTime = frame1->points[0].data_n[0] + frame1->points[0].data_n[1];
 
    OutMerge2Cloud:
       //------------------------------------------------------------------------------------------------
@@ -679,8 +681,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
 
          PointType pointOnYAxis;
          pointOnYAxis.x = 0.0;
-         pointOnYAxis.y = 10.0;
-         pointOnYAxis.z = 0.0;
+         pointOnYAxis.y = 0.0;
+         pointOnYAxis.z = 10.0;
          pointAssociateToMap(&pointOnYAxis, &pointOnYAxis);
 
          //第一帧起始(I,J,K)为(10,5,10)
@@ -1367,14 +1369,14 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                   cout << "frameID:" << frameID << "\tmeanDist = " << meanDist << "\tsigmaDist = " << sigmaDist << endl;
             }
             */
-
-            if (sumDeltaT > 0.10) //
+            distance_traveled += sumDeltaT;
+            double velocity = distance_traveled / (frame_curTime - frame_preTime);
+            if (velocity >= 2) //速度阈值
             {
                if (isShowCloud && TEST)
                   cout << "----------------------skip--------------------------\n";
                skipCurFrame = true;
             }
-
             // 循环保存前20个帧间距离
             transformLast20[(frameID) % 20] = transformTobeMapped;
             distLast20[(frameID) % 20] = sumDeltaT;
@@ -1442,6 +1444,12 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             skipCurFrame = false;
             continue;
          }
+         else
+         {
+            distance_traveled  = 0;
+            frame_preTime = frame_curTime;
+         }
+         
 
          // 在全局地图中加入当前帧的特征
          for (int i = 0; i < laserCloudCornerStackNum; i++)
@@ -1647,7 +1655,7 @@ void Mapping::setInitTraj(std::string trajPath)
       Tx(2, 1) = sin(theta);
       Tx(2, 2) = cos(theta);
 
-      Eigen::Matrix4d Ty = Eigen::Matrix4d::Identity(); //绕X轴转90°
+      Eigen::Matrix4d Ty = Eigen::Matrix4d::Identity(); //绕Y轴转90°
       Ty(0, 0) = cos(theta);
       Ty(0, 2) = sin(theta);
       Ty(2, 0) = -sin(theta);
