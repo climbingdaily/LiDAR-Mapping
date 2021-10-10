@@ -51,9 +51,11 @@ class Mapping
     int Nscans;           //default 32
     int Nscans2;          //default 16
     bool isMerge2Cloud;   //default false
-    bool isInitTraj[10000];      //是否输入了初始轨迹
+    bool isInitTraj;      //是否输入了初始轨迹
     bool isShowCloud;
-    Vector6d initTraj[10000];
+    Vector6d initTraj[30000];
+    double initTrajTime[30000];
+    int initTrajCount;
 
     Eigen::Matrix4f transformation;
     pcl::GeneralizedIterativeClosestPoint<PointType, PointType> GICP;

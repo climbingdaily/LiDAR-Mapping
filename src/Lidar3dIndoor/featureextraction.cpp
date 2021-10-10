@@ -314,7 +314,7 @@ void FeatureExtraction::setInputCloud(pcl::PointCloud<PointType> &laserCloudIn)
       pcl::PointCloud<PointType> surfPointsLessFlatScanDS;
       pcl::VoxelGrid<PointType> downSizeFilter;
       downSizeFilter.setInputCloud(surfPointsLessFlatScan);
-      downSizeFilter.setLeafSize(0.1, 0.1, 0.1);
+      downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
       downSizeFilter.filter(surfPointsLessFlatScanDS);
 
       surfPointsLessFlat += surfPointsLessFlatScanDS;

@@ -488,6 +488,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    double frame_curTime = 0;
    double frame_preTime = 0;
    double distance_traveled = 0;
+   int initTrajID = 0;
    int fitCount = 0;
    bool skipCurFrame = false;
    float distLast20[20] = {0};
@@ -637,25 +638,39 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
          // ShowFeature(cornerPointsLessSharp, cornerPointsLessSharp, surfPointsLessFlat, surfPointsLessFlat);
       }
       // double sumTraj = initTraj[frameID][0] + initTraj[frameID][1] + initTraj[frameID][2] + initTraj[frameID][3] + initTraj[frameID][4] +initTraj[frameID][5];
-      if(isInitTraj[frameID])
-      {
-         iniTransformVector = initTraj[frameID];
-      }
-      else
-         // iniTransformVector = 2 * transformTobeMapped - preTransformVector; //一阶: 简单拟合的一个初始变换向量 
-         iniTransformVector = transformTobeMapped;
-         // // 二阶: t_i = t_{i-1} + (t_{i-1} - t_i{-2}) + 0.5 * (t_{i-2} - t_{i-3}) 
-         // for (size_t i = 3; i < 6; i++)
-         // {
-         //    iniTransformVector[i] = 3 * transformLast20[(frameID - 1) % 20][i] -
-         //                         3 * transformLast20[(frameID - 2) % 20][i] +
-         //                         1 * transformLast20[(frameID - 3) % 20][i]; 
-         // }
 
+      // iniTransformVector = 2 * transformTobeMapped - preTransformVector; //一阶: 简单拟合的一个初始变换向量 
+      iniTransformVector = transformTobeMapped;
+      // // 二阶: t_i = t_{i-1} + (t_{i-1} - t_i{-2}) + 0.5 * (t_{i-2} - t_{i-3}) 
+      // for (size_t i = 3; i < 6; i++)
+      // {
+      //    iniTransformVector[i] = 3 * transformLast20[(frameID - 1) % 20][i] -
+      //                         3 * transformLast20[(frameID - 2) % 20][i] +
+      //                         1 * transformLast20[(frameID - 3) % 20][i]; 
+      // }
       preTransformVector = transformTobeMapped;
       transformTobeMapped = iniTransformVector;
       frameCount++;
 
+      if(isInitTraj)
+      {
+         // iniTransformVector = initTraj[frameID];
+         while (frame_curTime - initTrajTime[initTrajID] > 0.025)
+         {
+            initTrajID ++;
+            if (initTrajID >= initTrajCount)
+               break;
+         }
+         while (frame_curTime - initTrajTime[initTrajID] <= -0.025)
+         {
+            if (initTrajID == 0)
+               break;
+            initTrajID --;
+         }
+         if (abs(frame_curTime - initTrajTime[initTrajID]) < 0.025)
+            transformTobeMapped = initTraj[initTrajID];
+         // std::cout << "Time:" << initTrajTime[initTrajID] << " x:" << initTraj[initTrajID][3] << " y:" << initTraj[initTrajID][4] << " z:" << initTraj[initTrajID][5] << std::endl;
+      }
       if (frameCount >= stackFrameNum)
       {
          //将特征点放到上一帧附近
@@ -1371,15 +1386,47 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             */
             distance_traveled += sumDeltaT;
             double velocity = distance_traveled / (frame_curTime - frame_preTime);
-            if (velocity >= 2) //速度阈值
+            // cout <<  frameID << ", Velocity: " << velocity << " m/s, t1: " << frame_curTime << ", t2: "<< frame_preTime << endl;
+            if (velocity >= 2.5) //速度阈值
             {
                if (isShowCloud && TEST)
                   cout << "----------------------skip--------------------------\n";
                skipCurFrame = true;
             }
+            // else
+            // {
+               distance_traveled  = 0;
+               frame_preTime = frame_curTime;
+            // }
+            
             // 循环保存前20个帧间距离
             transformLast20[(frameID) % 20] = transformTobeMapped;
             distLast20[(frameID) % 20] = sumDeltaT;
+
+            // GICP
+            /*
+            if (skipCurFrame)
+            {
+               Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
+               Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
+               PointCloud::Ptr referrence(new PointCloud);
+               PointCloud::Ptr align(new PointCloud);
+               PointCloud::Ptr alignedframe(new PointCloud);
+
+               // 两帧乘上iniTransformVector
+               transformMatrix = Vector6dToRotate(iniTransformVector);
+               pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+               pcl::transformPointCloud(*frame1, *align, transformMatrix);
+
+               GICP.setInputTarget(referrence);
+               GICP.setInputSource(align);
+               GICP.align(*alignedframe);
+               ICPMatrix = GICP.getFinalTransformation();
+
+               transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+            }
+            */
+
             transformUpdate();
          }
          *framePre = *frame1;
@@ -1415,6 +1462,12 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             {
                viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 20, id);
                viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, id);
+               PointType idtext;
+               idtext.x = transformTobeMapped[3] - 0.1;
+               idtext.y = transformTobeMapped[4] - 0.1; 
+               idtext.z = transformTobeMapped[5] + 0.5; 
+               id = "__frameId3D" + std::to_string(frameID);
+               viewer->addText3D(std::to_string(frameID), idtext, 0.1, 1.0,1.0,1.0,id);
             }
             else
                viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, id);
@@ -1442,15 +1495,11 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
          if (skipCurFrame)
          {
             skipCurFrame = false;
+            // if (isInitTraj)
+            //    transformTobeMapped = initTraj[initTrajID];
             continue;
-         }
-         else
-         {
-            distance_traveled  = 0;
-            frame_preTime = frame_curTime;
-         }
+         }         
          
-
          // 在全局地图中加入当前帧的特征
          for (int i = 0; i < laserCloudCornerStackNum; i++)
          {
@@ -1635,6 +1684,7 @@ void Mapping::setNscans2(int scans)
 
 void Mapping::setInitTraj(std::string trajPath)
 {
+   initTrajCount = 0;
    ifstream traj(trajPath);
    if (!traj)
    {
@@ -1644,43 +1694,52 @@ void Mapping::setInitTraj(std::string trajPath)
 
    std::string vertex;
    int id;
-   double x, y, z;
+   double x, y, z, time;
    Eigen::Quaterniond qua;
+   bool first_frame = true;
+   double theta = M_PI / 2.0;
+   Eigen::Matrix4d Tx = Eigen::Matrix4d::Identity(); //绕X轴转90°
+   Tx(1, 1) = cos(theta);
+   Tx(1, 2) = -sin(theta);
+   Tx(2, 1) = sin(theta);
+   Tx(2, 2) = cos(theta);
+
+   Eigen::Matrix4d Ty = Eigen::Matrix4d::Identity(); //绕Y轴转90°
+   Ty(0, 0) = cos(theta);
+   Ty(0, 2) = sin(theta);
+   Ty(2, 0) = -sin(theta);
+   Ty(2, 2) = cos(theta);
+
+   Eigen::Matrix4d Tz = Eigen::Matrix4d::Identity(); //绕z轴转90°
+   Tz(0, 0) = cos(theta);
+   Tz(0, 1) = -sin(theta);
+   Tz(1, 0) = sin(theta);
+   Tz(1, 1) = cos(theta);
+
+   Eigen::Matrix4d R1_inv = Eigen::Matrix4d::Identity();
+
    while (!traj.eof())
    {
-      double theta = M_PI / 2.0;
-      Eigen::Matrix4d Tx = Eigen::Matrix4d::Identity(); //绕X轴转90°
-      Tx(1, 1) = cos(theta);
-      Tx(1, 2) = -sin(theta);
-      Tx(2, 1) = sin(theta);
-      Tx(2, 2) = cos(theta);
-
-      Eigen::Matrix4d Ty = Eigen::Matrix4d::Identity(); //绕Y轴转90°
-      Ty(0, 0) = cos(theta);
-      Ty(0, 2) = sin(theta);
-      Ty(2, 0) = -sin(theta);
-      Ty(2, 2) = cos(theta);
-
-      Eigen::Matrix4d Tz = Eigen::Matrix4d::Identity(); //绕z轴转90°
-      Tz(0, 0) = cos(theta);
-      Tz(0, 1) = -sin(theta);
-      Tz(1, 0) = sin(theta);
-      Tz(1, 1) = cos(theta);
 
       std::getline(traj, vertex);
       std::istringstream line(vertex);
       std::string label;
-      line >> label;
-      if (label != "VERTEX_SE3:QUAT")
-         continue;
-      line >> id >> x >> y >> z >> qua.x() >> qua.y() >> qua.z() >> qua.w();
-
+      // line >> label;
+      // if (label != "VERTEX_SE3:QUAT")
+         // continue;
+      line >> id >> x >> y >> z >> qua.x() >> qua.y() >> qua.z() >> qua.w() >> time;
       Eigen::Isometry3d odom = Eigen::Isometry3d::Identity();
       odom.translation() = Eigen::Vector3d(x, y, z);
       odom.linear() = qua.normalized().toRotationMatrix();
       Eigen::Matrix4d RT = odom.matrix();
-      Eigen::Matrix4d T3 = Tz * Tx * Tx;
-      RT = RT * Tz * Tx;
+      if (first_frame)
+      {
+         R1_inv = RT.inverse();
+         first_frame = false;
+      }
+      // Eigen::Matrix4d T3 = Tz * Tx * Tx;
+      RT = R1_inv * RT;
+      // RT = RT * Tz * Tx;
       Eigen::Matrix3d rot = Eigen::Matrix3d::Identity(); 
       for (size_t i = 0; i < 3; i++)
       {
@@ -1690,14 +1749,18 @@ void Mapping::setInitTraj(std::string trajPath)
          }
       }
       Eigen::Vector3d euler2 = rot.eulerAngles(1,0,2);
-      initTraj[id][0] = euler2[1];
-      initTraj[id][1] = euler2[0];
-      initTraj[id][2] = euler2[2];
-      initTraj[id][3] = x;
-      initTraj[id][4] = y;
-      initTraj[id][5] = z;
-      isInitTraj[id] = true;
+      initTraj[initTrajCount][0] = euler2[1];
+      initTraj[initTrajCount][1] = euler2[0];
+      initTraj[initTrajCount][2] = euler2[2];
+      initTraj[initTrajCount][3] = RT(0, 3);
+      initTraj[initTrajCount][4] = RT(1, 3);
+      initTraj[initTrajCount][5] = RT(2, 3);
+      
+      initTrajTime[initTrajCount] = time;
+      initTrajCount ++;
+      isInitTraj = true;
    }
+   // std::cout << "Count = " << count << std::endl;
    
 }
 
