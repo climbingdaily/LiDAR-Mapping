@@ -667,7 +667,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                break;
             initTrajID --;
          }
-         transformTobeMapped = initTraj[initTrajID];
+         if (abs(frame_curTime - initTrajTime[initTrajID]) < 0.025)
+            transformTobeMapped = initTraj[initTrajID];
          // std::cout << "Time:" << initTrajTime[initTrajID] << " x:" << initTraj[initTrajID][3] << " y:" << initTraj[initTrajID][4] << " z:" << initTraj[initTrajID][5] << std::endl;
       }
       if (frameCount >= stackFrameNum)
