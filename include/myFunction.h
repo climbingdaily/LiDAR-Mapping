@@ -388,6 +388,7 @@ inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile, 
    int ring;
    bool firstpoint = true;
    std::string line;
+   int temp;
 
    if(!cloudfile)
    {
@@ -401,7 +402,7 @@ inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile, 
       std::istringstream line_data(line);
 
       PointType pt;
-      line_data >> pt.x >> pt.y >> pt.z >> pt.intensity >> timestamp >> ring;
+      line_data >> pt.x >> pt.y >> pt.z >> pt.intensity >> timestamp >> ring >> temp;
 
       // skip NaN and INF valued points
       if (!pcl_isfinite(pt.x) ||
@@ -411,7 +412,7 @@ inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile, 
 
       // skip zero valued points
       float distance = pt.x * pt.x + pt.y * pt.y + pt.z * pt.z; 
-      if (distance < 0.0001)
+      if (distance < 0.4 * 0.4 || distance > 50 * 50)
          continue;
       
       if (firstpoint){
