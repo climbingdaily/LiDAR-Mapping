@@ -1393,11 +1393,11 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                   cout << "----------------------skip--------------------------\n";
                skipCurFrame = true;
             }
-            else
-            {
+            // else
+            // {
                distance_traveled  = 0;
                frame_preTime = frame_curTime;
-            }
+            // }
             
             // 循环保存前20个帧间距离
             transformLast20[(frameID) % 20] = transformTobeMapped;
