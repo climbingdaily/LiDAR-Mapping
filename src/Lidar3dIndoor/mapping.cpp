@@ -353,10 +353,10 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    downSizeFilterSurf.setLeafSize(0.1, 0.1, 0.1);
 
    pcl::VoxelGrid<PointType> downSizeFilterMap;
-   downSizeFilterMap.setLeafSize(0.06, 0.06, 0.06);
+   downSizeFilterMap.setLeafSize(0.2, 0.2, 0.2);
 
    pcl::VoxelGrid<PointType> downSizeGICP;
-   downSizeGICP.setLeafSize(0.3, 0.3, 0.3);
+   downSizeGICP.setLeafSize(0.1, 0.1, 0.1);
 
    for (int i = 0; i < laserCloudNum; i++)
    {
@@ -482,7 +482,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    // GICP.setRotationEpsilon(1e-9);
    GICP.setTransformationEpsilon(1e-8); //为终止条件设置最小转换差异
    GICP.setMaxCorrespondenceDistance(2); //设置对应点对之间的最大距离
-   GICP.setEuclideanFitnessEpsilon(1e-6); //设置收敛条件是均方误差和小于阈值， 停止迭代
+   GICP.setEuclideanFitnessEpsilon(1e-5); //设置收敛条件是均方误差和小于阈值， 停止迭代
    GICP.setMaximumOptimizerIterations(50);
 
    int frameOffset = 0;
@@ -1418,21 +1418,22 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                if (GICP.hasConverged())
                {
                   ICPMatrix = GICP.getFinalTransformation();
-                  cout << "Fit score: " <<  GICP.getFitnessScore() << std::endl;
-                  cout << "Epsilon score: " <<  GICP.getEuclideanFitnessEpsilon() << std::endl;
+                  cout << "Frame ID: " << frameID << "\tFit score: " << GICP.getFitnessScore() << "\tEpsilon score: " << GICP.getEuclideanFitnessEpsilon() << std::endl;
                   transformGICP = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
 
                   sumDeltaT = sqrt(
                               pow((transformGICP[3] - iniTransformVector[3]) * 100, 2) +
                               pow((transformGICP[4] - iniTransformVector[4]) * 100, 2) +
                               pow((transformGICP[5] - iniTransformVector[5]) * 100, 2)) / 100;
-                  velocity = sumDeltaT / (frame_curTime - frame_preTime);
+                  double velocity_gcip = sumDeltaT / (frame_curTime - frame_preTime);
+                  if (velocity > velocity_gcip)
+                  {
+                     transformTobeMapped = transformGICP; 
+                     velocity = velocity_gcip;
+                  }
                }
                if (velocity < 2.5)
-               {
                   skipCurFrame = false; 
-                  transformTobeMapped = transformGICP; 
-               }
                else
                   skipCurFrame = true;                      
             }
@@ -1508,6 +1509,46 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             ShowCloud(laserCloudSurfFromMap, viewer, "surf");
          }
 
+         if ((frameID - startFrameNumber) % 1500 == 0 && (frameID - startFrameNumber) > 0)
+         {
+            // Clear map every 2000 frames, but keep current map cube
+            int cubeI = int((transformTobeMapped[3] + 25.0) / 50.0) + laserCloudCenWidth;
+            int cubeJ = int((transformTobeMapped[4] + 25.0) / 50.0) + laserCloudCenHeight;
+            int cubeK = int((transformTobeMapped[5] + 25.0) / 50.0) + laserCloudCenDepth;
+            int cubeInd = -1;
+            if (transformTobeMapped[3] + 25.0 < 0)
+               cubeI--;
+            if (transformTobeMapped[4] + 25.0 < 0)
+               cubeJ--;
+            if (transformTobeMapped[5] + 25.0 < 0)
+               cubeK--;
+
+            if (cubeI >= 0 && cubeI < laserCloudWidth &&
+               cubeJ >= 0 && cubeJ < laserCloudHeight &&
+               cubeK >= 0 && cubeK < laserCloudDepth)
+            {
+               cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
+            }
+            // for (int i = 0; i < laserCloudNum; i++)
+            // {
+            //    if (cubeInd > 0 && i == cubeInd)
+            //       continue;
+            //    laserCloudCornerArray[i]->clear();
+            //    laserCloudCornerArray2[i]->clear();
+            //    laserCloudSurfArray[i]->clear();
+            //    laserCloudSurfArray2[i]->clear();
+            // }
+            std::string save_pcd = txtSaveLoc.substr(0, txtSaveLoc.rfind('/')) + "/segMap_" + std::to_string(frameID) + ".pcd";
+
+            laserCloudSurround2->clear();
+            *laserCloudSurround2 = *laserCloudCornerFromMap + *laserCloudSurfFromMap;
+            cout << "pcd root: " << save_pcd << endl;
+            laserCloudSurround->clear();
+            downSizeFilterMap.setInputCloud(laserCloudSurround2);
+            downSizeFilterMap.filter(*laserCloudSurround);
+            pcl::io::savePCDFileASCII(save_pcd, *laserCloudSurround);
+         }
+
          if (skipCurFrame)
          {
             skipCurFrame = false;
@@ -1540,7 +1581,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                   int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
                   laserCloudCornerArray[cubeInd]->push_back(pointSel);
                }
-               }
+            }
 
             for (int i = 0; i < laserCloudSurfStackNum; i++)
             {

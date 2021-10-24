@@ -61,7 +61,8 @@
         "set": "cpp",
         "string": "cpp",
         "core": "cpp",
-        "numericaldiff": "cpp"
+        "numericaldiff": "cpp",
+        "*.ipp": "cpp"
     },
     "git.ignoreLimitWarning": true,
     "python.pythonPath": "/home/daiyudi/miniconda3/bin/python3.9"

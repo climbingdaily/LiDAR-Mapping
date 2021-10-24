@@ -412,7 +412,7 @@ inline void getCloudFromeSpinXYZ(PointCloud::Ptr xyzcloud, std::string xyzfile, 
 
       // skip zero valued points
       float distance = pt.x * pt.x + pt.y * pt.y + pt.z * pt.z; 
-      if (distance < 1.5 * 1.5 || distance > 50 * 50)
+      if (distance < 2 * 2 || distance > 50 * 50)
          continue;
       
       if (firstpoint){
