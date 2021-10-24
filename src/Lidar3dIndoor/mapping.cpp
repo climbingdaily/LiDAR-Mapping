@@ -1391,41 +1391,46 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             {
                if (isShowCloud && TEST)
                   cout << "----------------------skip--------------------------\n";
-               skipCurFrame = true;
-            }
-            // else
-            // {
-               distance_traveled  = 0;
-               frame_preTime = frame_curTime;
-            // }
-            
-            // 循环保存前20个帧间距离
-            transformLast20[(frameID) % 20] = transformTobeMapped;
-            distLast20[(frameID) % 20] = sumDeltaT;
-
-            // GICP
-            /*
-            if (skipCurFrame)
-            {
+               // GICP
                Eigen::Matrix4f transformMatrix = Eigen::Matrix4f::Identity();
                Eigen::Matrix4f ICPMatrix = Eigen::Matrix4f::Identity();
                PointCloud::Ptr referrence(new PointCloud);
+               PointCloud::Ptr referrence_filt(new PointCloud);
                PointCloud::Ptr align(new PointCloud);
+               PointCloud::Ptr align_filt(new PointCloud);
                PointCloud::Ptr alignedframe(new PointCloud);
 
-               // 两帧乘上iniTransformVector
                transformMatrix = Vector6dToRotate(iniTransformVector);
-               pcl::transformPointCloud(*framePre, *referrence, transformMatrix);
+               pcl::transformPointCloud(*framePre, *referrence, transformMatrix); //之前乘已过
                pcl::transformPointCloud(*frame1, *align, transformMatrix);
 
-               GICP.setInputTarget(referrence);
-               GICP.setInputSource(align);
+               downSizeFilterSurf.setInputCloud(referrence);
+               downSizeFilterSurf.filter(*referrence_filt);
+               downSizeFilterSurf.setInputCloud(align);
+               downSizeFilterSurf.filter(*align_filt);
+
+               GICP.setInputTarget(referrence_filt);
+               GICP.setInputSource(align_filt);
                GICP.align(*alignedframe);
                ICPMatrix = GICP.getFinalTransformation();
 
                transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
+
+
+               sumDeltaT = sqrt(
+                           pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
+                           pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
+                           pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
+               velocity = sumDeltaT / (frame_curTime - frame_preTime);
+               if (velocity >= 2.5)
+                  skipCurFrame = true;
             }
-            */
+            distance_traveled  = 0;
+            frame_preTime = frame_curTime;
+            
+            // 循环保存前20个帧间距离
+            transformLast20[(frameID) % 20] = transformTobeMapped;
+            distLast20[(frameID) % 20] = sumDeltaT;
 
             transformUpdate();
          }
@@ -1497,80 +1502,81 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             skipCurFrame = false;
             // if (isInitTraj)
             //    transformTobeMapped = initTraj[initTrajID];
-            continue;
+            // continue;
          }         
-         
-         // 在全局地图中加入当前帧的特征
-         for (int i = 0; i < laserCloudCornerStackNum; i++)
+         else
          {
-            pointAssociateToMap(&laserCloudCornerStack->points[i], &pointSel);
-
-            int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
-            int cubeJ = int((pointSel.y + 25.0) / 50.0) + laserCloudCenHeight;
-            int cubeK = int((pointSel.z + 25.0) / 50.0) + laserCloudCenDepth;
-
-            if (pointSel.x + 25.0 < 0)
-               cubeI--;
-            if (pointSel.y + 25.0 < 0)
-               cubeJ--;
-            if (pointSel.z + 25.0 < 0)
-               cubeK--;
-
-            if (cubeI >= 0 && cubeI < laserCloudWidth &&
-                cubeJ >= 0 && cubeJ < laserCloudHeight &&
-                cubeK >= 0 && cubeK < laserCloudDepth)
+            //仅当当前帧速度符合阈值时，才在全局地图中加入当前帧的特征
+            for (int i = 0; i < laserCloudCornerStackNum; i++)
             {
-               int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
-               laserCloudCornerArray[cubeInd]->push_back(pointSel);
-            }
-            }
+               pointAssociateToMap(&laserCloudCornerStack->points[i], &pointSel);
 
-         for (int i = 0; i < laserCloudSurfStackNum; i++)
-         {
-            pointAssociateToMap(&laserCloudSurfStack->points[i], &pointSel);
+               int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
+               int cubeJ = int((pointSel.y + 25.0) / 50.0) + laserCloudCenHeight;
+               int cubeK = int((pointSel.z + 25.0) / 50.0) + laserCloudCenDepth;
 
-            int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
-            int cubeJ = int((pointSel.y + 25.0) / 50.0) + laserCloudCenHeight;
-            int cubeK = int((pointSel.z + 25.0) / 50.0) + laserCloudCenDepth;
+               if (pointSel.x + 25.0 < 0)
+                  cubeI--;
+               if (pointSel.y + 25.0 < 0)
+                  cubeJ--;
+               if (pointSel.z + 25.0 < 0)
+                  cubeK--;
 
-            if (pointSel.x + 25.0 < 0)
-               cubeI--;
-            if (pointSel.y + 25.0 < 0)
-               cubeJ--;
-            if (pointSel.z + 25.0 < 0)
-               cubeK--;
+               if (cubeI >= 0 && cubeI < laserCloudWidth &&
+                  cubeJ >= 0 && cubeJ < laserCloudHeight &&
+                  cubeK >= 0 && cubeK < laserCloudDepth)
+               {
+                  int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
+                  laserCloudCornerArray[cubeInd]->push_back(pointSel);
+               }
+               }
 
-            if (cubeI >= 0 && cubeI < laserCloudWidth &&
-                cubeJ >= 0 && cubeJ < laserCloudHeight &&
-                cubeK >= 0 && cubeK < laserCloudDepth)
+            for (int i = 0; i < laserCloudSurfStackNum; i++)
             {
-               int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
-               laserCloudSurfArray[cubeInd]->push_back(pointSel);
+               pointAssociateToMap(&laserCloudSurfStack->points[i], &pointSel);
+
+               int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
+               int cubeJ = int((pointSel.y + 25.0) / 50.0) + laserCloudCenHeight;
+               int cubeK = int((pointSel.z + 25.0) / 50.0) + laserCloudCenDepth;
+
+               if (pointSel.x + 25.0 < 0)
+                  cubeI--;
+               if (pointSel.y + 25.0 < 0)
+                  cubeJ--;
+               if (pointSel.z + 25.0 < 0)
+                  cubeK--;
+
+               if (cubeI >= 0 && cubeI < laserCloudWidth &&
+                  cubeJ >= 0 && cubeJ < laserCloudHeight &&
+                  cubeK >= 0 && cubeK < laserCloudDepth)
+               {
+                  int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
+                  laserCloudSurfArray[cubeInd]->push_back(pointSel);
+               }
+            }
+
+            //每个空间块内的点进行滤波
+            for (int i = 0; i < laserCloudValidNum; i++)
+            {
+               int ind = laserCloudValidInd[i];
+
+               laserCloudCornerArray2[ind]->clear();
+               downSizeFilterCorner.setInputCloud(laserCloudCornerArray[ind]);
+               downSizeFilterCorner.filter(*laserCloudCornerArray2[ind]);
+
+               laserCloudSurfArray2[ind]->clear();
+               downSizeFilterSurf.setInputCloud(laserCloudSurfArray[ind]);
+               downSizeFilterSurf.filter(*laserCloudSurfArray2[ind]);
+
+               pcl::PointCloud<PointType>::Ptr laserCloudTemp = laserCloudCornerArray[ind];
+               laserCloudCornerArray[ind] = laserCloudCornerArray2[ind];
+               laserCloudCornerArray2[ind] = laserCloudTemp;
+
+               laserCloudTemp = laserCloudSurfArray[ind];
+               laserCloudSurfArray[ind] = laserCloudSurfArray2[ind];
+               laserCloudSurfArray2[ind] = laserCloudTemp;
             }
          }
-
-         //每个空间块内的点进行滤波
-         for (int i = 0; i < laserCloudValidNum; i++)
-         {
-            int ind = laserCloudValidInd[i];
-
-            laserCloudCornerArray2[ind]->clear();
-            downSizeFilterCorner.setInputCloud(laserCloudCornerArray[ind]);
-            downSizeFilterCorner.filter(*laserCloudCornerArray2[ind]);
-
-            laserCloudSurfArray2[ind]->clear();
-            downSizeFilterSurf.setInputCloud(laserCloudSurfArray[ind]);
-            downSizeFilterSurf.filter(*laserCloudSurfArray2[ind]);
-
-            pcl::PointCloud<PointType>::Ptr laserCloudTemp = laserCloudCornerArray[ind];
-            laserCloudCornerArray[ind] = laserCloudCornerArray2[ind];
-            laserCloudCornerArray2[ind] = laserCloudTemp;
-
-            laserCloudTemp = laserCloudSurfArray[ind];
-            laserCloudSurfArray[ind] = laserCloudSurfArray2[ind];
-            laserCloudSurfArray2[ind] = laserCloudTemp;
-         }
-
          mapFrameCount++;
 
          if (false)
