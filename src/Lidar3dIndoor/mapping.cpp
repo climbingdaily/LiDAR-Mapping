@@ -355,6 +355,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    pcl::VoxelGrid<PointType> downSizeFilterMap;
    downSizeFilterMap.setLeafSize(0.06, 0.06, 0.06);
 
+   pcl::VoxelGrid<PointType> downSizeGICP;
+   downSizeGICP.setLeafSize(0.3, 0.3, 0.3);
 
    for (int i = 0; i < laserCloudNum; i++)
    {
@@ -480,8 +482,8 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
    // GICP.setRotationEpsilon(1e-9);
    GICP.setTransformationEpsilon(1e-8); //为终止条件设置最小转换差异
    GICP.setMaxCorrespondenceDistance(2); //设置对应点对之间的最大距离
-   GICP.setEuclideanFitnessEpsilon(0.001); //设置收敛条件是均方误差和小于阈值， 停止迭代
-   GICP.setMaximumOptimizerIterations(40);
+   GICP.setEuclideanFitnessEpsilon(1e-6); //设置收敛条件是均方误差和小于阈值， 停止迭代
+   GICP.setMaximumOptimizerIterations(50);
 
    int frameOffset = 0;
    float preStartTime, curStartTime, frameTime;
@@ -1387,7 +1389,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
             distance_traveled += sumDeltaT;
             double velocity = distance_traveled / (frame_curTime - frame_preTime);
             // cout <<  frameID << ", Velocity: " << velocity << " m/s, t1: " << frame_curTime << ", t2: "<< frame_preTime << endl;
-            if (velocity >= 2.5) //速度阈值
+            if (velocity >= 2.5 || distance_traveled > 0.4) //速度阈值
             {
                if (isShowCloud && TEST)
                   cout << "----------------------skip--------------------------\n";
@@ -1404,26 +1406,35 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                pcl::transformPointCloud(*framePre, *referrence, transformMatrix); //之前乘已过
                pcl::transformPointCloud(*frame1, *align, transformMatrix);
 
-               downSizeFilterSurf.setInputCloud(referrence);
-               downSizeFilterSurf.filter(*referrence_filt);
-               downSizeFilterSurf.setInputCloud(align);
-               downSizeFilterSurf.filter(*align_filt);
+               downSizeGICP.setInputCloud(referrence);
+               downSizeGICP.filter(*referrence_filt);
+               downSizeGICP.setInputCloud(align);
+               downSizeGICP.filter(*align_filt);
 
                GICP.setInputTarget(referrence_filt);
                GICP.setInputSource(align_filt);
                GICP.align(*alignedframe);
-               ICPMatrix = GICP.getFinalTransformation();
+               Vector6d transformGICP;
+               if (GICP.hasConverged())
+               {
+                  ICPMatrix = GICP.getFinalTransformation();
+                  cout << "Fit score: " <<  GICP.getFitnessScore() << std::endl;
+                  cout << "Epsilon score: " <<  GICP.getEuclideanFitnessEpsilon() << std::endl;
+                  transformGICP = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
 
-               transformTobeMapped = RotateToVector6d(ICPMatrix * transformMatrix); // matrix * T
-
-
-               sumDeltaT = sqrt(
-                           pow((transformTobeMapped[3] - iniTransformVector[3]) * 100, 2) +
-                           pow((transformTobeMapped[4] - iniTransformVector[4]) * 100, 2) +
-                           pow((transformTobeMapped[5] - iniTransformVector[5]) * 100, 2)) / 100;
-               velocity = sumDeltaT / (frame_curTime - frame_preTime);
-               if (velocity >= 2.5)
-                  skipCurFrame = true;
+                  sumDeltaT = sqrt(
+                              pow((transformGICP[3] - iniTransformVector[3]) * 100, 2) +
+                              pow((transformGICP[4] - iniTransformVector[4]) * 100, 2) +
+                              pow((transformGICP[5] - iniTransformVector[5]) * 100, 2)) / 100;
+                  velocity = sumDeltaT / (frame_curTime - frame_preTime);
+               }
+               if (velocity < 2.5)
+               {
+                  skipCurFrame = false; 
+                  transformTobeMapped = transformGICP; 
+               }
+               else
+                  skipCurFrame = true;                      
             }
             distance_traveled  = 0;
             frame_preTime = frame_curTime;

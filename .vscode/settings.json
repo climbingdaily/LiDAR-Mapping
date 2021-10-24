@@ -59,7 +59,9 @@
         "memory_resource": "cpp",
         "random": "cpp",
         "set": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "core": "cpp",
+        "numericaldiff": "cpp"
     },
     "git.ignoreLimitWarning": true,
     "python.pythonPath": "/home/daiyudi/miniconda3/bin/python3.9"
