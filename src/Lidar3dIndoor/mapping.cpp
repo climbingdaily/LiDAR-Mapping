@@ -1426,7 +1426,7 @@ int Mapping::run(std::string txtSaveLoc, std::string fileNamePcap, std::string c
                               pow((transformGICP[4] - iniTransformVector[4]) * 100, 2) +
                               pow((transformGICP[5] - iniTransformVector[5]) * 100, 2)) / 100;
                   double velocity_gcip = sumDeltaT / (frame_curTime - frame_preTime);
-                  if (velocity > velocity_gcip)
+                  if (velocity_gcip <5)
                   {
                      transformTobeMapped = transformGICP; 
                      velocity = velocity_gcip;
