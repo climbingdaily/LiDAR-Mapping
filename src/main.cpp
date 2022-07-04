@@ -84,24 +84,27 @@ int main(int argc, char **argv)
    int frameGap = 1;
    bool isMerg2Cloud = false;
    bool isShow = false;
+   bool isloop = false;
+
    //Exe传入参数
    for (int i = 1; i < argc; i++)
    {
       const char *currArg = argv[i];
       if (strcmp(currArg, "--help") == 0 || strcmp(currArg, "-h") == 0)
       {
-         printf("-f\t设置PCAP文件路径F！\n");
-         printf("-f2\t可选。设置第二个PCAP文件路径M！\n");
-         printf("-o\t可选。设置输出文件路径O。默认为可执行文件路径下的./output文件夹！\n");
-         printf("-d\t设置主激光头的硬件类型。可选 0/1/2 三个参数。\t0：VLP-16\t1：HDL-32\t2:VLP-32c\n");
-         printf("-d2\t设置第二激光头的硬件类型。可选 0/1/2 三个参数。\t0：VLP-16\t1：HDL-32\t2:VLP-32c\n");
-         printf("-b\t可选。设置建图起始帧数B。(填数字，默认0）\n");
-         printf("-e\t可选。设置建图结束的帧数E。(填数字，默认end）\n");
-         printf("-g\t可选。设置每G帧进行一次建图。可选1/2/3。(默认1)\n");
-         // printf("-r\t设置建图密度。默认3cm(输入整数)!\n");
-         printf("-s\t可选。建图时可视化点云\n");
+         printf("-f\tPCAP文件路径或者包含txt的文件夹！\n");
+         printf("-f2\t可选。第二个PCAP文件路径或者包含txt文件夹！\n");
+         printf("-o\t可选。输出文件路径。Default ./output\n");
+         printf("-d\t主激光头的硬件类型。可选 0/1/2/3 \t0：VLP-16\t1：HDL-32\t2:VLP-32c\t3:Ouster-01-64\n");
+         printf("-d2\t第二激光头的硬件类型。可选 0/1/2/3 \t0：VLP-16\t1：HDL-32\t2:VLP-32c\t3:Ouster-01-64\n");
+         printf("-b\t可选。建图起始帧数。(Default 0）\n");
+         printf("-e\t可选。建图结束的帧数。(Default -1）\n");
+         printf("-g\t可选。每帧进行一次建图。可选1/2/3。(Default 1)\n");
+         printf("-loop\t可选。进行闭环检测。Default 缺省\n");
+         // printf("-r\t设置建图密度。Default3cm(输入整数)!\n");
+         printf("-s\t可选。可视化\n");
          cout << "样例输入：" << endl;
-         cout << "./mapping -f \"a.pcap\" -m \"b.pcap\" -o ./here -d 2 -b 100 -e 10000 -g 1 -r 3 -s" << endl;
+         cout << "./mapping -f \"a.pcap\" -m \"b.pcap\" -o ./here -d 2 -b 100 -e 10000 -g 1 -r 3 -s -loop" << endl;
          // system("pause");
          return 0;
       }
@@ -279,10 +282,17 @@ int main(int argc, char **argv)
          // if (TEST)
             isShow = true;
       }
+      else if (strcmp(currArg, "-loop") == 0 || strcmp(currArg, "-LOOP") == 0)
+      {
+         // if (TEST)
+            isloop = true;
+      }
       else
       {
          pcapFile = argv[i];
       }
+
+      
    }
 
    if (!CheckFileExist(pcapFile.c_str()))
@@ -315,7 +325,7 @@ int main(int argc, char **argv)
    //Create new output Folder
    CreateDir(outputFolder.c_str());
 
-   std::string outputTraj; //=  outputFolder + "/trajectory.txt";
+   std::string outputTraj =  outputFolder + "/temp_trajectory.txt";
    std::string outputTrajWithTimeStamp = outputFolder + "/traj_with_timestamp.txt";
    std::string outputMap = outputFolder;
    std::string outputPrefaceTrj = outputFolder + "/pre_trajectory.txt";
@@ -346,7 +356,7 @@ int main(int argc, char **argv)
    std::string gpsFile = outputFolder + "/GPGGA.txt";
 
    std::string temploopDetectResult = "loop_detect_result.txt";
-   std::string tempoutputTraj = "loop_detect_result.txt";
+   // std::string tempoutputTraj = "loop_detect_result.txt";
    //create temp file
    //下面这句是为了程序奔溃时也能看结果
    if (CheckFileExist(tempTraj.c_str()))
@@ -355,8 +365,8 @@ int main(int argc, char **argv)
    }
    if (
       // CreateTempFile(tempTraj.c_str(), tempDir.c_str(), tempTraj) == -1 ||
-       CreateTempFile(temploopDetectResult.c_str(), tempDir.c_str(), temploopDetectResult) == -1 ||
-       CreateTempFile(tempoutputTraj.c_str(), tempDir.c_str(), outputTraj) == -1)
+      //  CreateTempFile(outputTraj.c_str(), tempDir.c_str(), outputTraj) == -1 ||
+       CreateTempFile(temploopDetectResult.c_str(), tempDir.c_str(), temploopDetectResult) == -1)
    {
       std::cout << "Cannot create temporary files" << endl;
       return -1;
@@ -419,8 +429,7 @@ int main(int argc, char **argv)
    if (isOutputPrefaceTrj)
       copyFile(tempTraj.c_str(), outputPrefaceTrj.c_str());
    timeWrite << t.record("MakeHorizonal") << endl;
-   bool isloop = false;
-   if (isloop)
+   if (false)
    {
 
       //----------------------------------------------------------------
@@ -467,14 +476,14 @@ int main(int argc, char **argv)
       unlink(temploopDetectResult.c_str());
       unlink(tempTraj.c_str());
 
-      MakeHorizonal mH2;
-      mH2.setFrameGap(frameGap); //一定要在1,3之间
-      mH2.SetTotalFrame(total_frame);
-      mH2.SetInputFile(outputTraj); //轨迹
+      // MakeHorizonal mH2;
+      // mH2.setFrameGap(frameGap); //一定要在1,3之间
+      // mH2.SetTotalFrame(total_frame);
+      // mH2.SetInputFile(outputTraj); //轨迹
       // mH.SetStartDistance(10.0);
       // mH.SetEndDistance(30.0);
-      mH2.Run();
-      timeWrite << t.record("MakeHorizonal") << endl;
+      // mH2.Run();
+      // timeWrite << t.record("MakeHorizonal") << endl;
    }
    else
    {
@@ -506,7 +515,7 @@ int main(int argc, char **argv)
       buildMap.setPointCloudReader2(pcap2File, calibFile2);
       buildMap.setCalibrationMatrixPath(calibMatrix);
    }
-   buildMap.setMapResolution(0.01 * resolution);
+   buildMap.setMapResolution(0.1 * resolution);
    buildMap.Run();
 
    timeWrite << t.record("buildMap") << endl;
